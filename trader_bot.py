@@ -9,9 +9,11 @@ import json
 import math
 import os
 import time
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 try:
     import ccxt  # type: ignore
@@ -212,14 +214,41 @@ def print_state(state: DayState) -> None:
     print(f"[STATE] date={state.date} daily_pnl={state.daily_pnl:.2%} losing_positions={state.losing_positions} trades={state.trades}")
 
 
-def run_once(exchange: "ccxt.bitget", symbol: str, cfg: BotConfig, state: DayState, confirm_live: bool) -> None:
+def send_telegram_message(bot_token: str, chat_id: str, text: str) -> None:
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, method="POST")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        _ = resp.read()
+
+
+def maybe_notify(bot_token: Optional[str], chat_id: Optional[str], text: str) -> None:
+    if not bot_token or not chat_id:
+        return
+    try:
+        send_telegram_message(bot_token, chat_id, text)
+    except Exception as exc:
+        print(f"[WARN] 텔레그램 알림 실패: {exc}")
+
+
+def run_once(
+    exchange: "ccxt.bitget",
+    symbol: str,
+    cfg: BotConfig,
+    state: DayState,
+    confirm_live: bool,
+    tg_bot_token: Optional[str],
+    tg_chat_id: Optional[str],
+) -> None:
     if symbol not in ALLOWED_SYMBOLS:
         print(f"[SKIP] 허용되지 않은 종목: {symbol}")
         return
 
     stop, reason = should_stop(cfg, state)
     if stop:
-        print(f"[STOP] {reason}. 오늘 거래 종료.")
+        message = f"[STOP] {reason}. 오늘 거래 종료."
+        print(message)
+        maybe_notify(tg_bot_token, tg_chat_id, message)
         return
 
     candles = exchange.fetch_ohlcv(symbol, timeframe=cfg.timeframe, limit=cfg.candle_limit)
@@ -250,10 +279,12 @@ def run_once(exchange: "ccxt.bitget", symbol: str, cfg: BotConfig, state: DaySta
         print(f"[{symbol}] SKIP | 계산 수량이 최소 주문 수량 미만입니다.")
         return
 
-    print(
+    signal_message = (
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
         f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT"
     )
+    print(signal_message)
+    maybe_notify(tg_bot_token, tg_chat_id, signal_message)
 
     if cfg.mode == "auto":
         if not confirm_live:
@@ -262,7 +293,9 @@ def run_once(exchange: "ccxt.bitget", symbol: str, cfg: BotConfig, state: DaySta
         params = {"marginMode": "cross"}
         order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=params)
         state.trades += 1
-        print(f"  -> order_id={order.get('id')}")
+        order_message = f"  -> order_id={order.get('id')}"
+        print(order_message)
+        maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 실주문 완료 {order_message}")
     else:
         print("  -> recommendation 모드: 주문 미실행")
 
@@ -280,6 +313,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--show-config", action="store_true", help="현재 리스크 설정값 출력")
     parser.add_argument("--account-size", type=float, default=0.0, help="포지션 계산용 시드(USDT). 0이면 거래소 잔고 사용")
     parser.add_argument("--risk-per-trade", type=float, default=0.01, help="1회 트레이드 리스크 비율(예: 0.01=1%%)")
+    parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", ""), help="텔레그램 봇 토큰")
+    parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", ""), help="텔레그램 chat id")
     return parser.parse_args()
 
 
@@ -308,19 +343,21 @@ def main() -> None:
         return
 
     exchange = make_exchange()
+    if args.telegram_bot_token and args.telegram_chat_id:
+        maybe_notify(args.telegram_bot_token, args.telegram_chat_id, f"봇 시작: mode={cfg.mode}, timeframe={cfg.timeframe}")
 
     if args.loop:
         while True:
             state = load_state()
             print_state(state)
             for symbol in args.symbols:
-                run_once(exchange, symbol, cfg, state, args.confirm_live)
+                run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None)
             save_state(state)
             time.sleep(args.interval)
     else:
         print_state(state)
         for symbol in args.symbols:
-            run_once(exchange, symbol, cfg, state, args.confirm_live)
+            run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None)
         save_state(state)
 
 

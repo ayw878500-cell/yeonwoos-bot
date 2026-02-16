@@ -50,6 +50,17 @@ python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 
 - `--account-size 1000` = 포지션 계산용 시드를 1000 USDT로 고정
 - `--risk-per-trade 0.01` = 1회 트레이드 최대 손실 허용 1%
 
+
+### 텔레그램 알림 연결 (선택)
+```bash
+export TELEGRAM_BOT_TOKEN="123456:ABC..."
+export TELEGRAM_CHAT_ID="123456789"
+
+python trader_bot.py --mode recommend --loop --interval 60
+```
+- LONG/SHORT 신호 발생 시 텔레그램으로 알림이 전송됩니다.
+- auto 모드에서 주문이 체결되면 주문 ID도 알림으로 전송됩니다.
+
 ## 동작 방식
 - 신호: EMA(20/50) 크로스 + RSI + ATR(변동성 필터)
 - 손절: ATR 기반 (`SL = 1.5 * ATR`)
@@ -72,6 +83,8 @@ python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 
 - `--confirm-live`: auto 모드 실주문 허용 플래그
 - `--account-size`: 포지션 계산용 시드(USDT), 0이면 거래소 USDT 잔고 사용
 - `--risk-per-trade`: 1회 트레이드 리스크 비율
+- `--telegram-bot-token`: 텔레그램 봇 토큰 (미지정 시 환경변수 사용)
+- `--telegram-chat-id`: 텔레그램 chat id (미지정 시 환경변수 사용)
 
 ## 추가 추천(강력 권장)
 1. **뉴스/이벤트 필터**: CPI/FOMC 전후 일정 시간 신규 진입 금지
