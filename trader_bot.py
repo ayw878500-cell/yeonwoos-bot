@@ -29,6 +29,7 @@ class BotConfig:
     timeframe: str = "15m"
     candle_limit: int = 250
     leverage: int = 3
+    account_size_override: float = 0.0  # 0이면 거래소 USDT 잔고 사용
 
     # risk guardrails
     daily_take_profit: float = 0.10
@@ -239,8 +240,10 @@ def run_once(exchange: "ccxt.bitget", symbol: str, cfg: BotConfig, state: DaySta
         take_profit = price - (stop_price - price) * cfg.tp_rr_ratio
         side = "sell"
 
-    balance = exchange.fetch_balance().get("USDT", {}).get("free", 0.0)
-    qty = position_size(float(balance), price, stop_price, cfg.risk_per_trade)
+    exchange_balance = float(exchange.fetch_balance().get("USDT", {}).get("free", 0.0))
+    effective_balance = cfg.account_size_override if cfg.account_size_override > 0 else exchange_balance
+    risk_usdt = effective_balance * cfg.risk_per_trade
+    qty = position_size(effective_balance, price, stop_price, cfg.risk_per_trade)
     qty = normalize_amount(exchange, symbol, qty)
 
     if qty <= 0:
@@ -249,7 +252,7 @@ def run_once(exchange: "ccxt.bitget", symbol: str, cfg: BotConfig, state: DaySta
 
     print(
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
-        f"size={qty:.6f} lev={cfg.leverage}"
+        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT"
     )
 
     if cfg.mode == "auto":
@@ -275,12 +278,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reset-day", action="store_true", help="오늘 상태(state.json) 초기화")
     parser.add_argument("--confirm-live", action="store_true", help="auto 모드 실주문 확인 플래그")
     parser.add_argument("--show-config", action="store_true", help="현재 리스크 설정값 출력")
+    parser.add_argument("--account-size", type=float, default=0.0, help="포지션 계산용 시드(USDT). 0이면 거래소 잔고 사용")
+    parser.add_argument("--risk-per-trade", type=float, default=0.01, help="1회 트레이드 리스크 비율(예: 0.01=1%%)")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cfg = BotConfig(mode=args.mode, timeframe=args.timeframe)
+    cfg = BotConfig(
+        mode=args.mode,
+        timeframe=args.timeframe,
+        account_size_override=max(args.account_size, 0.0),
+        risk_per_trade=max(min(args.risk_per_trade, 1.0), 0.0),
+    )
 
     if args.show_config:
         print(json.dumps(dataclasses.asdict(cfg), indent=2, ensure_ascii=False))

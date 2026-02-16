@@ -43,6 +43,13 @@ python trader_bot.py --reset-day --status
 python trader_bot.py --mode auto --confirm-live --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 15m --loop --interval 60
 ```
 
+### 시드(자본)와 1회 리스크 직접 지정
+```bash
+python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 --symbols BTC/USDT:USDT ETH/USDT:USDT
+```
+- `--account-size 1000` = 포지션 계산용 시드를 1000 USDT로 고정
+- `--risk-per-trade 0.01` = 1회 트레이드 최대 손실 허용 1%
+
 ## 동작 방식
 - 신호: EMA(20/50) 크로스 + RSI + ATR(변동성 필터)
 - 손절: ATR 기반 (`SL = 1.5 * ATR`)
@@ -63,6 +70,8 @@ python trader_bot.py --mode auto --confirm-live --symbols BTC/USDT:USDT ETH/USDT
 - `--reset-day`: 오늘 상태 초기화
 - `--show-config`: 현재 기본 리스크 설정값 출력
 - `--confirm-live`: auto 모드 실주문 허용 플래그
+- `--account-size`: 포지션 계산용 시드(USDT), 0이면 거래소 USDT 잔고 사용
+- `--risk-per-trade`: 1회 트레이드 리스크 비율
 
 ## 추가 추천(강력 권장)
 1. **뉴스/이벤트 필터**: CPI/FOMC 전후 일정 시간 신규 진입 금지
