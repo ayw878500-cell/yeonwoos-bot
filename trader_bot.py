@@ -11,7 +11,7 @@ import os
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,6 +23,7 @@ except Exception:  # pragma: no cover
 
 ALLOWED_SYMBOLS = ("BTC/USDT:USDT", "ETH/USDT:USDT")
 STATE_FILE = Path("state.json")
+EVENTS_FILE = Path("events.json")
 
 
 @dataclasses.dataclass
@@ -30,7 +31,7 @@ class BotConfig:
     mode: str = "recommend"  # recommend | auto
     timeframe: str = "15m"
     candle_limit: int = 250
-    leverage: int = 3
+    leverage: int = 10
     account_size_override: float = 0.0  # 0이면 거래소 USDT 잔고 사용
 
     # risk guardrails
@@ -177,6 +178,61 @@ def should_stop(cfg: BotConfig, state: DayState) -> Tuple[bool, str]:
     return False, ""
 
 
+def parse_event_iso8601(value: str) -> datetime:
+    """Parse event time string as UTC-aware datetime."""
+    v = value.strip()
+    if v.endswith("Z"):
+        v = v[:-1] + "+00:00"
+    dt = datetime.fromisoformat(v)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def load_block_events(file_path: Path) -> List[dict]:
+    if not file_path.exists():
+        return []
+    try:
+        data = json.loads(file_path.read_text())
+    except Exception:
+        return []
+
+    if isinstance(data, dict):
+        events = data.get("events", [])
+    elif isinstance(data, list):
+        events = data
+    else:
+        return []
+
+    out: List[dict] = []
+    for item in events:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "event")).strip()
+        at = item.get("at")
+        if not at:
+            continue
+        try:
+            event_time = parse_event_iso8601(str(at))
+        except Exception:
+            continue
+        out.append({"name": name, "at": event_time})
+    return out
+
+
+def in_event_block_window(events: List[dict], before_min: int, after_min: int) -> Tuple[bool, str]:
+    now = datetime.now(timezone.utc)
+    before = timedelta(minutes=max(before_min, 0))
+    after = timedelta(minutes=max(after_min, 0))
+    for event in events:
+        event_time = event["at"]
+        start = event_time - before
+        end = event_time + after
+        if start <= now <= end:
+            return True, event.get("name", "event")
+    return False, ""
+
+
 def make_exchange() -> "ccxt.bitget":
     if ccxt is None:
         raise RuntimeError("ccxt가 설치되어 있지 않습니다. `pip install -r requirements.txt` 실행 필요")
@@ -239,6 +295,9 @@ def run_once(
     confirm_live: bool,
     tg_bot_token: Optional[str],
     tg_chat_id: Optional[str],
+    events: List[dict],
+    block_before_min: int,
+    block_after_min: int,
 ) -> None:
     if symbol not in ALLOWED_SYMBOLS:
         print(f"[SKIP] 허용되지 않은 종목: {symbol}")
@@ -249,6 +308,11 @@ def run_once(
         message = f"[STOP] {reason}. 오늘 거래 종료."
         print(message)
         maybe_notify(tg_bot_token, tg_chat_id, message)
+        return
+
+    blocked, event_name = in_event_block_window(events, block_before_min, block_after_min)
+    if blocked:
+        print(f"[{symbol}] SKIP | 뉴스/이벤트 필터 활성화: {event_name} 전후 차단 구간")
         return
 
     candles = exchange.fetch_ohlcv(symbol, timeframe=cfg.timeframe, limit=cfg.candle_limit)
@@ -315,6 +379,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--risk-per-trade", type=float, default=0.01, help="1회 트레이드 리스크 비율(예: 0.01=1%%)")
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", ""), help="텔레그램 봇 토큰")
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", ""), help="텔레그램 chat id")
+    parser.add_argument("--events-file", default=str(EVENTS_FILE), help="CPI/FOMC 등 이벤트 파일(JSON)")
+    parser.add_argument("--block-before-min", type=int, default=60, help="이벤트 이전 차단 분")
+    parser.add_argument("--block-after-min", type=int, default=60, help="이벤트 이후 차단 분")
     return parser.parse_args()
 
 
@@ -343,6 +410,9 @@ def main() -> None:
         return
 
     exchange = make_exchange()
+    events = load_block_events(Path(args.events_file))
+    if events:
+        print(f"[INFO] 이벤트 {len(events)}개 로드, 차단 윈도우: -{max(args.block_before_min,0)}m/+{max(args.block_after_min,0)}m")
     if args.telegram_bot_token and args.telegram_chat_id:
         maybe_notify(args.telegram_bot_token, args.telegram_chat_id, f"봇 시작: mode={cfg.mode}, timeframe={cfg.timeframe}")
 
@@ -351,13 +421,13 @@ def main() -> None:
             state = load_state()
             print_state(state)
             for symbol in args.symbols:
-                run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None)
+                run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
             save_state(state)
             time.sleep(args.interval)
     else:
         print_state(state)
         for symbol in args.symbols:
-            run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None)
+            run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
         save_state(state)
 
 

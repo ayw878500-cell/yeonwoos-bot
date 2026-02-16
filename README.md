@@ -51,6 +51,24 @@ python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 
 - `--risk-per-trade 0.01` = 1회 트레이드 최대 손실 허용 1%
 
 
+
+### 뉴스/이벤트 필터 (CPI/FOMC)
+`events.json`에 이벤트 시간을 UTC(ISO8601)로 넣으면, 전후 구간 신규 진입을 차단합니다.
+
+```bash
+python trader_bot.py --mode recommend --events-file events.json --block-before-min 90 --block-after-min 90
+```
+
+`events.json` 예시:
+```json
+{
+  "events": [
+    {"name": "US CPI", "at": "2026-03-12T12:30:00Z"},
+    {"name": "FOMC Rate Decision", "at": "2026-03-18T18:00:00Z"}
+  ]
+}
+```
+
 ### 텔레그램 알림 연결 (선택)
 ```bash
 export TELEGRAM_BOT_TOKEN="123456:ABC..."
@@ -67,6 +85,8 @@ python trader_bot.py --mode recommend --loop --interval 60
 - 익절: 손익비 1:2
 - 포지션 사이즈: 계좌의 `1%`만 리스크로 계산
 - 실주문 안전장치: `--confirm-live` 없으면 auto 모드라도 주문 차단
+- 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
+- 기본 레버리지: 10배
 
 ## 파일
 - `trader_bot.py`: 실행 스크립트
@@ -85,6 +105,9 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `--risk-per-trade`: 1회 트레이드 리스크 비율
 - `--telegram-bot-token`: 텔레그램 봇 토큰 (미지정 시 환경변수 사용)
 - `--telegram-chat-id`: 텔레그램 chat id (미지정 시 환경변수 사용)
+- `--events-file`: 이벤트 JSON 파일 경로
+- `--block-before-min`: 이벤트 이전 차단 분 (기본 60)
+- `--block-after-min`: 이벤트 이후 차단 분 (기본 60)
 
 ## 추가 추천(강력 권장)
 1. **뉴스/이벤트 필터**: CPI/FOMC 전후 일정 시간 신규 진입 금지
