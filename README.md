@@ -48,9 +48,32 @@ git --version
 > 아주 중요: 출금 권한은 주지 마세요.
 
 ### 1-4. 프로젝트 폴더 준비
-예시:
+`프로젝트 폴더`는 **이 봇 파일들이 들어있는 실제 폴더**를 말합니다.
+즉, 폴더 안에 최소한 아래 파일이 보여야 합니다.
+- `README.md`
+- `bot.py`
+- `requirements.txt`
+- `windows` 폴더
+
+예시 경로:
 ```text
 C:\Users\내이름\Desktop\yeonwoos-bot
+```
+
+#### 이미 GitHub에서 받아둔 경우
+그 폴더로 이동만 하면 됩니다.
+
+```powershell
+cd C:\Users\user\Desktop\yeonwoos-bot
+```
+
+#### 아직 폴더가 없는 경우 (처음부터 만드는 법)
+아래를 그대로 입력하면 폴더 생성 + 코드 다운로드가 됩니다.
+
+```powershell
+cd C:\Users\user\Desktop
+git clone <저장소주소> yeonwoos-bot
+cd yeonwoos-bot
 ```
 
 ---
