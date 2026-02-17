@@ -59,11 +59,19 @@ C:\Users\내이름\Desktop\yeonwoos-bot
 
 PowerShell을 **관리자 권한**으로 열고 아래 순서대로 입력:
 
+### 방법 A (추천, 실행정책 오류 회피)
 ```powershell
 cd <프로젝트_폴더>
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-.\windows\install_autostart.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
 ```
+
+### 방법 B (CMD에서 더블클릭/실행)
+```cmd
+cd <프로젝트_폴더>
+windows\install_autostart.cmd
+```
+
+> `파일이 디지털 서명되지 않았습니다` 오류가 있으면, 방법 A 또는 B를 사용하면 됩니다.
 
 여기까지 하면:
 - 가상환경 생성
@@ -102,8 +110,16 @@ ARMED_TRADING=true
 
 ## 4) 첫 실행 확인 (무조건 해야 함)
 
+먼저 가상환경 파이썬이 있는지 확인:
+
 ```powershell
 cd <프로젝트_폴더>
+.\.venv\Scripts\python.exe --version
+```
+
+버전이 나오면 아래 실행:
+
+```powershell
 .\.venv\Scripts\python.exe bot.py
 ```
 
@@ -138,8 +154,14 @@ python -c "import requests; print(requests.__version__)"
 ```
 
 ### 6-2. PowerShell 실행정책 오류
+아래 둘 중 하나로 실행하면 됩니다.
+
 ```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
+```
+
+```cmd
+windows\install_autostart.cmd
 ```
 
 ### 6-3. API 인증 실패

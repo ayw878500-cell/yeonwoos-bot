@@ -3,10 +3,15 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
 
+# 활성화 스크립트를 실행하지 않고 venv python을 직접 사용 (실행정책 이슈 회피)
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+$VenvPython = Join-Path $Root '.venv\Scripts\python.exe'
+if (!(Test-Path $VenvPython)) {
+  throw "가상환경 Python 생성 실패: $VenvPython"
+}
+
+& $VenvPython -m pip install --upgrade pip
+& $VenvPython -m pip install -r requirements.txt
 
 if (!(Test-Path '.env')) {
   Copy-Item '.env.example' '.env'
@@ -29,4 +34,4 @@ $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Description 'Auto start Bitget bot on logon' -Force | Out-Null
 Write-Host "[OK] 작업 스케줄러 등록 완료: $TaskName"
-Write-Host '[NEXT] .env에서 DRY_RUN/LIVE_CONFIRM/ARMED_TRADING 설정 후 테스트하세요.'
+Write-Host '[NEXT] .env API 키를 반드시 확인하고 테스트하세요.'
