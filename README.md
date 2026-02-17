@@ -9,7 +9,7 @@
 
 - **PowerShell**: 윈도우에서 명령어 입력하는 검은/파란 창
 - **폴더**: 파일 들어있는 보관함
-- **프로젝트 폴더**: 이 봇 파일들이 들어있는 폴더 (`bot.py`, `README.md` 있는 곳)
+- **봇 파일 폴더**: 이 봇 파일들이 들어있는 폴더 (`bot.py`, `README.md` 있는 곳)
 - **API KEY / SECRET / PASSPHRASE**: 비트겟 계정과 프로그램을 연결하는 비밀번호 3종 세트
 - **.env 파일**: 내 키/설정을 적어두는 메모장 파일
 - **실전모드**: 진짜 주문이 나가는 모드
@@ -17,7 +17,7 @@
 
 ---
 
-## 1) 사전작업 (이거 먼저 안 하면 뒤에서 막힙니다)
+## 1) 시작 전에 준비할 것 (아주 쉬운 버전)
 
 ### 1-1. Python 설치
 1. 브라우저에서 `python.org` 접속
@@ -47,8 +47,8 @@ git --version
 
 > 아주 중요: 출금 권한은 주지 마세요.
 
-### 1-4. 프로젝트 폴더 준비
-`프로젝트 폴더`는 **이 봇 파일들이 들어있는 실제 폴더**를 말합니다.
+### 1-4. 봇 파일 있는 곳 준비
+`봇 파일 폴더`는 그냥 **이 프로그램 파일들이 들어있는 폴더**예요.
 즉, 폴더 안에 최소한 아래 파일이 보여야 합니다.
 - `README.md`
 - `bot.py`
@@ -78,19 +78,19 @@ cd yeonwoos-bot
 
 ---
 
-## 2) 설치 순서 (복붙용, 한 줄씩 그대로)
+## 2) 설치하기 (복사해서 한 줄씩 붙여넣기)
 
 PowerShell을 **관리자 권한**으로 열고 아래 순서대로 입력:
 
 ### 방법 A (추천, 실행정책 오류 회피)
 ```powershell
-cd <프로젝트_폴더>
+cd <봇파일있는곳>
 powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
 ```
 
 ### 방법 B (CMD에서 더블클릭/실행)
 ```cmd
-cd <프로젝트_폴더>
+cd <봇파일있는곳>
 windows\install_autostart.cmd
 ```
 
@@ -107,7 +107,7 @@ windows\install_autostart.cmd
 
 ## 3) `.env` 파일 채우기 (가장 중요)
 
-프로젝트 폴더의 `.env` 파일을 메모장으로 열고,
+봇 파일 폴더의 `.env` 파일을 메모장으로 열고,
 아래 3줄을 **내 진짜 값**으로 바꾸세요.
 
 ```env
@@ -136,7 +136,7 @@ ARMED_TRADING=true
 먼저 가상환경 파이썬이 있는지 확인:
 
 ```powershell
-cd <프로젝트_폴더>
+cd <봇파일있는곳>
 .\.venv\Scripts\python.exe --version
 ```
 
@@ -170,13 +170,13 @@ cd <프로젝트_폴더>
 
 ### 6-1. `No module named 'requests'`
 ```powershell
-cd <프로젝트_폴더>
+cd <봇파일있는곳>
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -c "import requests; print(requests.__version__)"
 ```
 
-### 6-2. PowerShell 실행정책 오류
+### 6-2. PowerShell 보안 경고 오류
 아래 둘 중 하나로 실행하면 됩니다.
 
 ```powershell
@@ -187,20 +187,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.
 windows\install_autostart.cmd
 ```
 
-### 6-3. API 인증 실패
+### 6-3. 비트겟 연결 실패
 - `.env`의 KEY/SECRET/PASSPHRASE 오타 확인
 - 앞뒤 공백 확인
 - 비트겟에서 API 권한/상태 확인
 
 
-### 6-4. `Register-ScheduledTask : 액세스가 거부되었습니다 (0x80070005)`
+### 6-4. `Register-ScheduledTask` 접근 거부 오류 (0x80070005)
 이건 보통 **작업 스케줄러 등록 권한 부족** 때문에 나옵니다.
 
 이번 스크립트는 이 오류가 나면 자동으로 **시작프로그램(Startup)** 방식으로 바꿔 등록합니다.
 그래서 설치를 다시 한 번 실행하면 됩니다.
 
 ```powershell
-cd <프로젝트_폴더>
+cd <봇파일있는곳>
 powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
 ```
 
