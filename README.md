@@ -1,224 +1,129 @@
-# 비트겟 자동매매 봇 (완전 쉬운 설명 + 사전작업부터 끝까지)
+# 비트겟 선물 자동매매 봇 (요청 반영 버전)
 
-이 문서는 **컴퓨터 초보도 그대로 따라할 수 있게** 썼습니다.
-이번에는 띄엄띄엄이 아니라, **시작 전에 뭘 준비해야 하는지(사전작업)**부터 순서대로 설명합니다.
-
----
-
-## 0) 진짜 먼저: 쉬운 단어 설명
-
-- **PowerShell**: 윈도우에서 명령어 입력하는 검은/파란 창
-- **폴더**: 파일 들어있는 보관함
-- **봇 파일 폴더**: 이 봇 파일들이 들어있는 폴더 (`bot.py`, `README.md` 있는 곳)
-- **API KEY / SECRET / PASSPHRASE**: 비트겟 계정과 프로그램을 연결하는 비밀번호 3종 세트
-- **.env 파일**: 내 키/설정을 적어두는 메모장 파일
-- **실전모드**: 진짜 주문이 나가는 모드
-- **로그(log)**: 프로그램이 무슨 일을 했는지 기록한 일지
+요청 반영:
+- 레버리지 10배
+- 진입 시드 30%
+- 하루 목표 수익 10%
+- 하루 손절 3회면 당일 거래 중지
+- 텔레그램 알림
 
 ---
 
-## 1) 시작 전에 준비할 것 (아주 쉬운 버전)
+## 1) 먼저 준비할 것
 
-### 1-1. Python 설치
-1. 브라우저에서 `python.org` 접속
-2. Python 3.10 이상 설치
-3. 설치할 때 **Add Python to PATH** 체크
-
-확인 방법(필수):
-```powershell
-python --version
-```
-버전 숫자가 나오면 성공입니다.
-
-### 1-2. Git 설치 (PR 내려받을 때 필요)
-1. 브라우저에서 `git-scm.com` 접속
-2. 기본 옵션으로 설치
-
-확인 방법:
-```powershell
-git --version
-```
-
-### 1-3. 비트겟 API 만들기
-비트겟에서 API를 만들고 아래 3개를 따로 메모해두세요.
-- API KEY
-- SECRET
-- PASSPHRASE
-
-> 아주 중요: 출금 권한은 주지 마세요.
-
-### 1-4. 봇 파일 있는 곳 준비
-`봇 파일 폴더`는 그냥 **이 프로그램 파일들이 들어있는 폴더**예요.
-즉, 폴더 안에 최소한 아래 파일이 보여야 합니다.
-- `README.md`
-- `bot.py`
-- `requirements.txt`
-- `windows` 폴더
-
-예시 경로:
-```text
-C:\Users\내이름\Desktop\yeonwoos-bot
-```
-
-#### 이미 GitHub에서 받아둔 경우
-그 폴더로 이동만 하면 됩니다.
-
-```powershell
-cd C:\Users\user\Desktop\yeonwoos-bot
-```
-
-#### 아직 폴더가 없는 경우 (처음부터 만드는 법)
-아래를 그대로 입력하면 폴더 생성 + 코드 다운로드가 됩니다.
-
-```powershell
-cd C:\Users\user\Desktop
-git clone <저장소주소> yeonwoos-bot
-cd yeonwoos-bot
-```
+1. Python 설치 (3.10+)
+2. 비트겟 API 3개 발급
+   - API KEY / SECRET / PASSPHRASE
+3. 텔레그램 봇 토큰 + chat id 준비(알림용)
 
 ---
 
-## 2) 설치하기 (복사해서 한 줄씩 붙여넣기)
+## 2) 설치 (윈도우)
 
-PowerShell을 **관리자 권한**으로 열고 아래 순서대로 입력:
-
-### 방법 A (추천, 실행정책 오류 회피)
+### 방법 A (권장)
 ```powershell
 cd <봇파일있는곳>
 powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
 ```
 
-### 방법 B (CMD에서 더블클릭/실행)
+### 방법 B (PowerShell 보안 막힘 시)
 ```cmd
 cd <봇파일있는곳>
 windows\install_autostart.cmd
 ```
 
-> `파일이 디지털 서명되지 않았습니다` 오류가 있으면, 방법 A 또는 B를 사용하면 됩니다.
-
-여기까지 하면:
-- 가상환경 생성
-- 필요한 패키지 설치
-- `.env` 파일 준비
-- 윈도우 로그인 시 자동실행 등록
-이 끝납니다.
-
 ---
 
-## 3) `.env` 파일 채우기 (가장 중요)
+## 3) .env 입력 (진짜 중요)
 
-봇 파일 폴더의 `.env` 파일을 메모장으로 열고,
-아래 3줄을 **내 진짜 값**으로 바꾸세요.
+`.env` 파일 열고 아래는 꼭 채우세요.
 
 ```env
-BITGET_API_KEY=여기에_내_API키
-BITGET_API_SECRET=여기에_내_SECRET
-BITGET_API_PASSPHRASE=여기에_내_패스프레이즈
+BITGET_API_KEY=내키
+BITGET_API_SECRET=내시크릿
+BITGET_API_PASSPHRASE=내패스프레이즈
+
+TELEGRAM_BOT_TOKEN=내텔레그램봇토큰
+TELEGRAM_CHAT_ID=내채팅아이디
 ```
 
-현재 기본값은 요청에 따라 실전모드입니다:
+기본값은 이미 요청대로 세팅돼 있습니다.
 
 ```env
+LEVERAGE=10
+ENTRY_FRACTION=0.3
+MAX_DAILY_STOPLOSS=3
+DAILY_TARGET_PCT=0.1
 DRY_RUN=false
 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
 ARMED_TRADING=true
 ```
 
-뜻:
-- `DRY_RUN=false` = 연습이 아니라 실제 주문 허용
-- `LIVE_CONFIRM=...` = 실전모드 확인 문구
-- `ARMED_TRADING=true` = 실전모드 스위치 ON
+---
+
+## 4) 매매 동작 방식 (복잡하지 않게)
+
+1. EMA(FAST_MA/SLOW_MA) 신호 발생 시 진입
+2. 진입 후 손절/익절 가격 자동 계산
+3. 가격이 손절선/익절선 닿으면 자동 청산
+4. 손절이 하루 3회 되면 오늘 종료
+5. 하루 수익이 10% 이상이면 오늘 종료
+6. 모든 상태를 텔레그램으로 전송
 
 ---
 
-## 4) 첫 실행 확인 (무조건 해야 함)
+## 5) 원하는 신호로 바꾸는 방법
 
-먼저 가상환경 파이썬이 있는지 확인:
+`.env`에서 아래 두 값만 바꾸면 됩니다.
+
+```env
+FAST_MA=20
+SLOW_MA=60
+```
+
+예:
+- 더 빠르게 반응: `FAST_MA=10`, `SLOW_MA=30`
+- 더 느리게/보수적: `FAST_MA=30`, `SLOW_MA=90`
+
+---
+
+## 6) 실행 확인
 
 ```powershell
 cd <봇파일있는곳>
 .\.venv\Scripts\python.exe --version
-```
-
-버전이 나오면 아래 실행:
-
-```powershell
 .\.venv\Scripts\python.exe bot.py
 ```
 
-이제 로그를 확인하세요:
+로그 파일:
 - `logs/bot.out.log`
 - `logs/bot.err.log`
 
-체크 포인트:
-1. 에러가 계속 쌓이지 않는지
-2. API 인증 오류가 없는지
-3. 주문 관련 메시지가 정상적으로 찍히는지
+---
+
+## 7) 자주 나는 오류
+
+### (1) 디지털 서명/실행정책 오류
+`install_autostart.cmd`로 실행하면 우회됩니다.
+
+### (2) Register-ScheduledTask 액세스 거부(0x80070005)
+권한 문제입니다. 스크립트가 자동으로 Startup 방식으로 등록합니다.
 
 ---
 
-## 5) 자동실행 확인 (컴퓨터 켤 때 자동)
+## 8) 내가 추천하는 프롬프트 추가 항목
 
-1. `작업 스케줄러` 열기
-2. `작업 스케줄러 라이브러리` 클릭
-3. `YeonwooBitgetBot` 작업 있는지 확인
-4. 상태가 Ready/Running인지 확인
+다음 요구사항까지 프롬프트에 같이 넣으면 결과물이 더 좋아집니다.
 
----
-
-## 6) 오류 나면 이렇게 해결
-
-### 6-1. `No module named 'requests'`
-```powershell
-cd <봇파일있는곳>
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -c "import requests; print(requests.__version__)"
-```
-
-### 6-2. PowerShell 보안 경고 오류
-아래 둘 중 하나로 실행하면 됩니다.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
-```
-
-```cmd
-windows\install_autostart.cmd
-```
-
-### 6-3. 비트겟 연결 실패
-- `.env`의 KEY/SECRET/PASSPHRASE 오타 확인
-- 앞뒤 공백 확인
-- 비트겟에서 API 권한/상태 확인
-
-
-### 6-4. `Register-ScheduledTask` 접근 거부 오류 (0x80070005)
-이건 보통 **작업 스케줄러 등록 권한 부족** 때문에 나옵니다.
-
-이번 스크립트는 이 오류가 나면 자동으로 **시작프로그램(Startup)** 방식으로 바꿔 등록합니다.
-그래서 설치를 다시 한 번 실행하면 됩니다.
-
-```powershell
-cd <봇파일있는곳>
-powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
-```
-
-설치 후 아래 파일이 생기면 정상입니다.
-- `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\YeonwooBitgetBot.cmd`
-
----
-
-## 7) 진짜 마지막 체크리스트
-
-- [ ] Python 설치 확인했는가? (`python --version`)
-- [ ] Git 설치 확인했는가? (`git --version`)
-- [ ] `.env`에 내 API 3개 정확히 넣었는가?
-- [ ] 로그 파일에서 에러 없는지 봤는가?
-- [ ] 자동실행 작업(`YeonwooBitgetBot`)이 등록됐는가?
+1. **최대 동시 포지션 수**(예: 1개)
+2. **하루 최대 손실률**(예: -5% 도달 시 중지)
+3. **슬리피지/수수료 포함 백테스트 기준**
+4. **거래 가능한 시간대 제한**(뉴스 시간 피하기)
+5. **비상 정지 명령어**(텔레그램으로 STOP)
+6. **재시작 후 포지션 복구 로직**(기존 포지션 감지)
 
 ---
 
 ## 면책
 
-이 코드는 교육/연습용입니다. 실거래 손익 책임은 사용자 본인에게 있습니다.
+실전 손익 책임은 본인에게 있습니다.
