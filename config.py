@@ -21,12 +21,20 @@ class Settings:
     stop_loss_pct: float
     take_profit_pct: float
 
+    min_order_margin_usdt: float
+    max_orders_per_day: int
+    signal_cooldown_sec: int
+
     dry_run: bool
+    live_confirm: str
     loop_interval_sec: int
 
 
 class ConfigError(ValueError):
     pass
+
+
+LIVE_CONFIRM_TEXT = "I_UNDERSTAND_LIVE_TRADING"
 
 
 def _require(name: str) -> str:
@@ -52,7 +60,11 @@ def load_settings() -> Settings:
         risk_per_trade=float(os.getenv("RISK_PER_TRADE", "0.01")),
         stop_loss_pct=float(os.getenv("STOP_LOSS_PCT", "0.01")),
         take_profit_pct=float(os.getenv("TAKE_PROFIT_PCT", "0.02")),
+        min_order_margin_usdt=float(os.getenv("MIN_ORDER_MARGIN_USDT", "5")),
+        max_orders_per_day=int(os.getenv("MAX_ORDERS_PER_DAY", "4")),
+        signal_cooldown_sec=int(os.getenv("SIGNAL_COOLDOWN_SEC", "300")),
         dry_run=os.getenv("DRY_RUN", "true").lower() == "true",
+        live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         loop_interval_sec=int(os.getenv("LOOP_INTERVAL_SEC", "15")),
     )
 
@@ -66,6 +78,16 @@ def _validate(s: Settings) -> None:
     if not (0 < s.entry_fraction <= 0.5):
         raise ConfigError("ENTRY_FRACTION은 0 초과 0.5 이하로 제한됩니다.")
     if not (0 < s.risk_per_trade <= 0.02):
-        raise ConfigError("RISK_PER_TRADE는 0 초과 0.02 이하를 권장/강제합니다.")
+        raise ConfigError("RISK_PER_TRADE는 0 초과 0.02 이하로 제한됩니다.")
     if s.stop_loss_pct <= 0 or s.take_profit_pct <= 0:
         raise ConfigError("STOP_LOSS_PCT 및 TAKE_PROFIT_PCT는 양수여야 합니다.")
+    if s.min_order_margin_usdt <= 0:
+        raise ConfigError("MIN_ORDER_MARGIN_USDT는 양수여야 합니다.")
+    if s.max_orders_per_day < 1:
+        raise ConfigError("MAX_ORDERS_PER_DAY는 1 이상이어야 합니다.")
+    if s.signal_cooldown_sec < 0:
+        raise ConfigError("SIGNAL_COOLDOWN_SEC는 0 이상이어야 합니다.")
+    if not s.dry_run and s.live_confirm != LIVE_CONFIRM_TEXT:
+        raise ConfigError(
+            "실전 주문을 하려면 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING 를 설정하세요."
+        )

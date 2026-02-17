@@ -35,14 +35,28 @@ class BitgetClient:
         body = json.dumps(payload) if payload else ""
         headers = self._headers(method, path, body)
         url = f"{self.base_url}{path}"
-        res = requests.request(method, url, headers=headers, data=body, timeout=10)
-        res.raise_for_status()
-        return res.json()
+        response = requests.request(method, url, headers=headers, data=body, timeout=10)
+        response.raise_for_status()
+        return response.json()
 
     def ticker_price(self, symbol: str, product_type: str) -> float:
         path = f"/api/v2/mix/market/ticker?symbol={symbol}&productType={product_type}"
         data = self._request("GET", path)
         return float(data["data"][0]["lastPr"])
+
+    def account_equity(self, symbol: str, product_type: str, margin_coin: str) -> float:
+        path = (
+            "/api/v2/mix/account/account"
+            f"?symbol={symbol}&productType={product_type}&marginCoin={margin_coin}"
+        )
+        data = self._request("GET", path)
+        account = data.get("data") or {}
+        # Bitget 응답 버전별 키 명 차이를 대비한 fallbacks
+        for key in ("available", "availableBalance", "usdtEquity", "equity"):
+            value = account.get(key)
+            if value is not None:
+                return float(value)
+        raise ValueError(f"계좌 잔고 키를 찾지 못했습니다: {account}")
 
     def place_market_order(
         self,
