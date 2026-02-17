@@ -90,6 +90,40 @@ python bot.py
 
 ---
 
+## 2-4) PR(브랜치)로 바로 내려받기 가능한가?
+
+가능합니다. 다만 **ZIP 다운로드보다 Git으로 받는 방식**이 가장 안전합니다.
+
+### 방법 A) 현재 브랜치(최신 커밋) 그대로 받기
+
+```powershell
+git clone <YOUR_REPO_URL>
+cd yeonwoos-bot
+git pull
+```
+
+### 방법 B) 특정 PR 번호를 바로 받아서 테스트하기
+
+원격이 `origin`이고 PR 번호가 `123`일 때:
+
+```powershell
+git fetch origin pull/123/head:pr-123
+git switch pr-123
+```
+
+그 다음 실행:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python bot.py
+```
+
+> 참고: 위 `git fetch origin pull/<번호>/head:<로컬브랜치>` 방식은 GitHub 저장소에서 PR 내용을 바로 내려받는 표준 패턴입니다.
+
+---
+
 성공하면 이런 느낌 로그가 나옵니다.
 
 - `[START] bot running... DRY_RUN= True`
