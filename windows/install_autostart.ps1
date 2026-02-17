@@ -32,6 +32,19 @@ $Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfil
 $Trigger = New-ScheduledTaskTrigger -AtLogOn
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
 
-Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Description 'Auto start Bitget bot on logon' -Force | Out-Null
-Write-Host "[OK] 작업 스케줄러 등록 완료: $TaskName"
+try {
+  Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Description 'Auto start Bitget bot on logon' -Force | Out-Null
+  Write-Host "[OK] 작업 스케줄러 등록 완료: $TaskName"
+} catch {
+  Write-Host "[WARN] 작업 스케줄러 등록 실패(권한 문제 가능): $($_.Exception.Message)"
+  Write-Host '[WARN] 시작프로그램(Startup) 방식으로 자동실행을 등록합니다.'
+
+  $startupDir = [Environment]::GetFolderPath('Startup')
+  $startupCmd = Join-Path $startupDir 'YeonwooBitgetBot.cmd'
+  $cmdLine = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`""
+  Set-Content -Path $startupCmd -Value $cmdLine -Encoding ASCII
+
+  Write-Host "[OK] 시작프로그램 등록 완료: $startupCmd"
+}
+
 Write-Host '[NEXT] .env API 키를 반드시 확인하고 테스트하세요.'

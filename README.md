@@ -192,6 +192,21 @@ windows\install_autostart.cmd
 - 앞뒤 공백 확인
 - 비트겟에서 API 권한/상태 확인
 
+
+### 6-4. `Register-ScheduledTask : 액세스가 거부되었습니다 (0x80070005)`
+이건 보통 **작업 스케줄러 등록 권한 부족** 때문에 나옵니다.
+
+이번 스크립트는 이 오류가 나면 자동으로 **시작프로그램(Startup)** 방식으로 바꿔 등록합니다.
+그래서 설치를 다시 한 번 실행하면 됩니다.
+
+```powershell
+cd <프로젝트_폴더>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
+```
+
+설치 후 아래 파일이 생기면 정상입니다.
+- `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\YeonwooBitgetBot.cmd`
+
 ---
 
 ## 7) 진짜 마지막 체크리스트
