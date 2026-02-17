@@ -6,6 +6,7 @@
 - 하루 목표 수익 10%
 - 하루 손절 3회면 당일 거래 중지
 - 텔레그램 알림
+- 손익비는 전문 트레이더들이 많이 쓰는 1:2 기본 적용
 
 ---
 
@@ -54,10 +55,31 @@ LEVERAGE=10
 ENTRY_FRACTION=0.3
 MAX_DAILY_STOPLOSS=3
 DAILY_TARGET_PCT=0.1
+STOP_LOSS_PCT=0.01
+RISK_REWARD_RATIO=2.0
 DRY_RUN=false
 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
 ARMED_TRADING=true
 ```
+
+---
+
+
+## 3-1) 손익비(전문 트레이더 방식) 설정
+
+현재 기본은 **손익비 1:2** 입니다.
+- 손절 1%면 익절 2%
+- 계산식: `TAKE_PROFIT_PCT = STOP_LOSS_PCT * RISK_REWARD_RATIO`
+
+`.env`에서 이렇게 설정하면 됩니다.
+
+```env
+STOP_LOSS_PCT=0.01
+RISK_REWARD_RATIO=2.0
+```
+
+보통 많이 쓰는 범위:
+- 1.5 ~ 3.0 (기본 2.0 권장)
 
 ---
 

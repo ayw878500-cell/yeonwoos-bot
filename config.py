@@ -19,6 +19,7 @@ class Settings:
     entry_fraction: float
     risk_per_trade: float
     stop_loss_pct: float
+    risk_reward_ratio: float
     take_profit_pct: float
 
     fast_ma: int
@@ -75,7 +76,8 @@ def load_settings() -> Settings:
         entry_fraction=float(os.getenv("ENTRY_FRACTION", "0.3")),
         risk_per_trade=float(os.getenv("RISK_PER_TRADE", "0.01")),
         stop_loss_pct=float(os.getenv("STOP_LOSS_PCT", "0.01")),
-        take_profit_pct=float(os.getenv("TAKE_PROFIT_PCT", "0.02")),
+        risk_reward_ratio=float(os.getenv("RISK_REWARD_RATIO", "2.0")),
+        take_profit_pct=0.0,
         fast_ma=int(os.getenv("FAST_MA", "20")),
         slow_ma=int(os.getenv("SLOW_MA", "60")),
         max_daily_stoploss=int(os.getenv("MAX_DAILY_STOPLOSS", "3")),
@@ -91,6 +93,8 @@ def load_settings() -> Settings:
         telegram_enabled=bool(token and chat_id),
     )
 
+    settings.take_profit_pct = settings.stop_loss_pct * settings.risk_reward_ratio
+
     _validate(settings)
     return settings
 
@@ -100,8 +104,12 @@ def _validate(s: Settings) -> None:
         raise ConfigError("LEVERAGE는 1~10 범위여야 합니다.")
     if not (0 < s.entry_fraction <= 1):
         raise ConfigError("ENTRY_FRACTION은 0 초과 1 이하로 입력하세요.")
-    if s.stop_loss_pct <= 0 or s.take_profit_pct <= 0:
-        raise ConfigError("STOP_LOSS_PCT, TAKE_PROFIT_PCT는 양수여야 합니다.")
+    if s.stop_loss_pct <= 0:
+        raise ConfigError("STOP_LOSS_PCT는 양수여야 합니다.")
+    if s.risk_reward_ratio < 1.5 or s.risk_reward_ratio > 4.0:
+        raise ConfigError("RISK_REWARD_RATIO는 1.5~4.0 범위(전문가들이 자주 쓰는 구간)로 설정하세요.")
+    if s.take_profit_pct <= 0:
+        raise ConfigError("계산된 TAKE_PROFIT_PCT가 0 이하입니다. STOP_LOSS_PCT/RISK_REWARD_RATIO를 확인하세요.")
     if s.fast_ma < 2 or s.slow_ma <= s.fast_ma:
         raise ConfigError("FAST_MA < SLOW_MA 형태로 설정하세요.")
     if s.max_daily_stoploss < 1:
