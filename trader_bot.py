@@ -48,6 +48,9 @@ class BotConfig:
     ema_slow: int = 50
     atr_period: int = 14
     min_atr_pct: float = 0.002
+    breakout_lookback: int = 20
+    min_body_atr_ratio: float = 0.2
+    max_ema_distance_atr: float = 1.2
 
 
 @dataclasses.dataclass
@@ -125,10 +128,11 @@ def atr(high: List[float], low: List[float], close: List[float], period: int = 1
 
 
 def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[str, float]]:
-    min_need = max(cfg.ema_slow + 2, cfg.rsi_period + 2, cfg.atr_period + 2)
+    min_need = max(cfg.ema_slow + 2, cfg.rsi_period + 2, cfg.atr_period + 2, cfg.breakout_lookback + 2)
     if len(candles) < min_need:
         return "HOLD", {"reason": -2.0, "price": candles[-1][4] if candles else 0.0, "rsi": 50.0, "atr_pct": 0.0}
 
+    open_ = [c[1] for c in candles]
     close = [c[4] for c in candles]
     high = [c[2] for c in candles]
     low = [c[3] for c in candles]
@@ -139,6 +143,7 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     atr_v = atr(high, low, close, cfg.atr_period)
 
     last_close = close[-1]
+    last_open = open_[-1]
     last_rsi = rsi_v[-1]
     last_atr = atr_v[-1]
     atr_pct = last_atr / last_close if last_close else 0.0
@@ -149,12 +154,20 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     fast_now, fast_prev = ema_fast[-1], ema_fast[-2]
     slow_now, slow_prev = ema_slow[-1], ema_slow[-2]
 
-    cross_up = fast_prev <= slow_prev and fast_now > slow_now
-    cross_down = fast_prev >= slow_prev and fast_now < slow_now
+    trend_up = fast_now > slow_now
+    trend_down = fast_now < slow_now
+    recent_high = max(high[-(cfg.breakout_lookback + 1):-1])
+    recent_low = min(low[-(cfg.breakout_lookback + 1):-1])
+    body_size = abs(last_close - last_open)
+    body_ok = body_size >= (last_atr * cfg.min_body_atr_ratio)
+    ema_distance_ok = abs(last_close - fast_now) <= (last_atr * cfg.max_ema_distance_atr)
 
-    if cross_up and 45 <= last_rsi <= 70:
+    breakout_up = last_close > recent_high
+    breakout_down = last_close < recent_low
+
+    if trend_up and breakout_up and body_ok and ema_distance_ok and 48 <= last_rsi <= 72:
         return "LONG", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
-    if cross_down and 30 <= last_rsi <= 55:
+    if trend_down and breakout_down and body_ok and ema_distance_ok and 28 <= last_rsi <= 52:
         return "SHORT", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
 
     return "HOLD", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}

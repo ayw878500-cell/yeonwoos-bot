@@ -80,13 +80,27 @@ python trader_bot.py --mode recommend --loop --interval 60
 - auto 모드에서 주문이 체결되면 주문 ID도 알림으로 전송됩니다.
 
 ## 동작 방식
-- 신호: EMA(20/50) 크로스 + RSI + ATR(변동성 필터)
+- 신호(보완): EMA(20/50) 추세 + 20봉 돌파 + RSI + ATR(변동성/캔들바디 필터)
 - 손절: ATR 기반 (`SL = 1.5 * ATR`)
 - 익절: 손익비 1:2
 - 포지션 사이즈: 계좌의 `1%`만 리스크로 계산
 - 실주문 안전장치: `--confirm-live` 없으면 auto 모드라도 주문 차단
 - 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
 - 기본 레버리지: 10배
+
+
+### 진입 타점 기준(현재 로직)
+- LONG
+  - EMA20 > EMA50 (상승 추세)
+  - 종가가 최근 `breakout_lookback`(기본 20봉) 고점 상향 돌파
+  - 현재 캔들 바디가 ATR 대비 충분히 큼 (`min_body_atr_ratio`)
+  - 가격이 EMA20에서 너무 멀지 않음 (`max_ema_distance_atr`)
+  - RSI 범위 필터 통과
+- SHORT는 위 조건 반대(하락 추세 + 저점 이탈)
+
+자동 진입은 **반드시** 아래 두 가지가 충족되어야만 됩니다.
+1) 비트겟 API 키가 환경변수로 설정됨
+2) `--mode auto --confirm-live`로 실행함
 
 ## 파일
 - `trader_bot.py`: 실행 스크립트
