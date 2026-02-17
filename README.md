@@ -1,3 +1,13 @@
+# ⚠️ 현재 설정은 요청에 따라 기본이 실전모드입니다
+
+- `DRY_RUN=false`
+- `LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING`
+- `ARMED_TRADING=true`
+
+즉, API 키가 유효하면 주문이 실제로 나갈 수 있습니다.
+
+---
+
 # 비트겟 자동매매 봇 (완전 쉬운 설명)
 
 이 파일은 **컴퓨터 초보도 따라할 수 있게** 쓴 설명서입니다.
@@ -9,7 +19,7 @@
 
 - 이 프로그램은 자동으로 매매를 도와주는 도구예요.
 - 돈을 무조건 벌게 해주는 프로그램은 절대 아니에요.
-- 그래서 처음에는 **연습모드(DRY_RUN=true)** 로만 사용해야 해요.
+- 현재는 요청대로 기본이 실전모드라서, 키 입력 전 반드시 다시 확인해야 해요.
 
 ---
 
@@ -49,12 +59,12 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 그리고 처음에는 아래처럼 꼭 저장하세요.
 
 ```env
-DRY_RUN=true
-LIVE_CONFIRM=
-ARMED_TRADING=false
+DRY_RUN=false
+LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
+ARMED_TRADING=true
 ```
 
-이 상태는 **실제 주문이 절대 안 나가는 연습모드**예요.
+이 상태는 **실제 주문이 나갈 수 있는 실전모드**예요.
 
 ---
 
@@ -124,7 +134,7 @@ python -c "import requests; print(requests.__version__)"
 
 ## 마지막 한 줄 요약
 
-**처음에는 무조건 DRY_RUN=true, 익숙해진 뒤에만 실전 전환하세요.**
+**현재 요청 반영으로 기본이 실전모드입니다. 주문 전 키/수량을 반드시 다시 확인하세요.**
 
 ---
 
