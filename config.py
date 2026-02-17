@@ -25,8 +25,12 @@ class Settings:
     max_orders_per_day: int
     signal_cooldown_sec: int
 
+    max_consecutive_errors: int
+    error_cooldown_sec: int
+
     dry_run: bool
     live_confirm: str
+    armed_trading: bool
     loop_interval_sec: int
 
 
@@ -42,6 +46,10 @@ def _require(name: str) -> str:
     if not value:
         raise ConfigError(f"환경변수 {name} 이(가) 비어 있습니다.")
     return value
+
+
+def _to_bool(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "y"}
 
 
 def load_settings() -> Settings:
@@ -63,8 +71,11 @@ def load_settings() -> Settings:
         min_order_margin_usdt=float(os.getenv("MIN_ORDER_MARGIN_USDT", "5")),
         max_orders_per_day=int(os.getenv("MAX_ORDERS_PER_DAY", "4")),
         signal_cooldown_sec=int(os.getenv("SIGNAL_COOLDOWN_SEC", "300")),
-        dry_run=os.getenv("DRY_RUN", "true").lower() == "true",
+        max_consecutive_errors=int(os.getenv("MAX_CONSECUTIVE_ERRORS", "5")),
+        error_cooldown_sec=int(os.getenv("ERROR_COOLDOWN_SEC", "120")),
+        dry_run=_to_bool(os.getenv("DRY_RUN", "true")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
+        armed_trading=_to_bool(os.getenv("ARMED_TRADING", "false")),
         loop_interval_sec=int(os.getenv("LOOP_INTERVAL_SEC", "15")),
     )
 
@@ -87,7 +98,15 @@ def _validate(s: Settings) -> None:
         raise ConfigError("MAX_ORDERS_PER_DAY는 1 이상이어야 합니다.")
     if s.signal_cooldown_sec < 0:
         raise ConfigError("SIGNAL_COOLDOWN_SEC는 0 이상이어야 합니다.")
-    if not s.dry_run and s.live_confirm != LIVE_CONFIRM_TEXT:
-        raise ConfigError(
-            "실전 주문을 하려면 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING 를 설정하세요."
-        )
+    if s.max_consecutive_errors < 1:
+        raise ConfigError("MAX_CONSECUTIVE_ERRORS는 1 이상이어야 합니다.")
+    if s.error_cooldown_sec < 1:
+        raise ConfigError("ERROR_COOLDOWN_SEC는 1 이상이어야 합니다.")
+
+    if not s.dry_run:
+        if s.live_confirm != LIVE_CONFIRM_TEXT:
+            raise ConfigError(
+                "실전 주문을 하려면 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING 를 설정하세요."
+            )
+        if not s.armed_trading:
+            raise ConfigError("실전 주문을 하려면 ARMED_TRADING=true 를 설정하세요.")

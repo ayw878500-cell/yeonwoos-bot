@@ -16,11 +16,7 @@ def setup_logger() -> logging.Logger:
     return logging.getLogger("bitget-bot")
 
 
-def can_order(
-    settings: Settings,
-    last_order_ts: float,
-    orders_today: int,
-) -> tuple[bool, str]:
+def can_order(settings: Settings, last_order_ts: float, orders_today: int) -> tuple[bool, str]:
     if settings.max_orders_per_day <= orders_today:
         return False, "max_orders_per_day limit"
     if last_order_ts > 0 and (time.time() - last_order_ts) < settings.signal_cooldown_sec:
@@ -43,8 +39,13 @@ def main() -> None:
     today = date.today()
     orders_today = 0
     last_order_ts = 0.0
+    consecutive_errors = 0
 
-    logger.info("[START] bot running... DRY_RUN=%s", settings.dry_run)
+    logger.info(
+        "[START] bot running... DRY_RUN=%s ARMED_TRADING=%s",
+        settings.dry_run,
+        settings.armed_trading,
+    )
 
     while True:
         try:
@@ -56,6 +57,7 @@ def main() -> None:
             price = client.ticker_price(settings.symbol, settings.product_type)
             signal = strategy.update(price)
             if not signal:
+                consecutive_errors = 0
                 time.sleep(settings.loop_interval_sec)
                 continue
 
@@ -80,12 +82,14 @@ def main() -> None:
                     margin_size,
                     settings.min_order_margin_usdt,
                 )
+                consecutive_errors = 0
                 time.sleep(settings.loop_interval_sec)
                 continue
 
             allowed, reason = can_order(settings, last_order_ts, orders_today)
             if not allowed:
                 logger.info("[SKIP] order blocked: %s", reason)
+                consecutive_errors = 0
                 time.sleep(settings.loop_interval_sec)
                 continue
 
@@ -121,8 +125,19 @@ def main() -> None:
                 last_order_ts = time.time()
                 logger.info("[ORDER] %s", result)
 
+            consecutive_errors = 0
+
         except Exception as exc:
+            consecutive_errors += 1
             logger.exception("[ERROR] %s", exc)
+            if consecutive_errors >= settings.max_consecutive_errors:
+                logger.error(
+                    "[CIRCUIT_BREAKER] %s consecutive errors. sleeping %ss",
+                    consecutive_errors,
+                    settings.error_cooldown_sec,
+                )
+                time.sleep(settings.error_cooldown_sec)
+                consecutive_errors = 0
 
         time.sleep(settings.loop_interval_sec)
 
