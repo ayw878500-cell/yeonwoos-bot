@@ -37,7 +37,8 @@
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 copy .env.example .env
 python bot.py
 ```
@@ -47,7 +48,8 @@ python bot.py
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate.bat
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 copy .env.example .env
 python bot.py
 ```
@@ -57,6 +59,36 @@ python bot.py
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
+
+
+## 2-3) 오류 해결: `ModuleNotFoundError: No module named 'requests'`
+
+이 에러는 대부분 **다른 파이썬**으로 실행했을 때 발생합니다.
+(예: 설치는 전역 파이썬에 했는데 실행은 가상환경 파이썬으로 하거나 그 반대)
+
+아래 4줄을 그대로 다시 실행하세요.
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -c "import requests; print(requests.__version__)"
+```
+
+버전 숫자가 출력되면 정상입니다. 그다음 실행:
+
+```powershell
+python bot.py
+```
+
+가상환경 활성화가 헷갈리면, 아래처럼 **가상환경 파이썬을 직접 지정**해서 실행하면 가장 안전합니다.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe bot.py
+```
+
+---
 
 성공하면 이런 느낌 로그가 나옵니다.
 
