@@ -29,7 +29,7 @@ EVENTS_FILE = Path("events.json")
 @dataclasses.dataclass
 class BotConfig:
     mode: str = "recommend"  # recommend | auto
-    timeframe: str = "15m"
+    timeframe: str = "5m"
     candle_limit: int = 250
     leverage: int = 10
     account_size_override: float = 0.0  # 0이면 거래소 USDT 잔고 사용
@@ -51,6 +51,7 @@ class BotConfig:
     breakout_lookback: int = 20
     min_body_atr_ratio: float = 0.2
     max_ema_distance_atr: float = 1.2
+    fvg_min_gap_atr: float = 0.10
 
 
 @dataclasses.dataclass
@@ -128,7 +129,7 @@ def atr(high: List[float], low: List[float], close: List[float], period: int = 1
 
 
 def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[str, float]]:
-    min_need = max(cfg.ema_slow + 2, cfg.rsi_period + 2, cfg.atr_period + 2, cfg.breakout_lookback + 2)
+    min_need = max(cfg.ema_slow + 2, cfg.rsi_period + 2, cfg.atr_period + 2, cfg.breakout_lookback + 3)
     if len(candles) < min_need:
         return "HOLD", {"reason": -2.0, "price": candles[-1][4] if candles else 0.0, "rsi": 50.0, "atr_pct": 0.0}
 
@@ -151,24 +152,53 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     if atr_pct < cfg.min_atr_pct:
         return "HOLD", {"reason": -1.0, "price": last_close, "rsi": last_rsi, "atr_pct": atr_pct}
 
-    fast_now, fast_prev = ema_fast[-1], ema_fast[-2]
-    slow_now, slow_prev = ema_slow[-1], ema_slow[-2]
+    fast_now = ema_fast[-1]
+    slow_now = ema_slow[-1]
 
     trend_up = fast_now > slow_now
     trend_down = fast_now < slow_now
+
     recent_high = max(high[-(cfg.breakout_lookback + 1):-1])
     recent_low = min(low[-(cfg.breakout_lookback + 1):-1])
+    breakout_up = last_close > recent_high
+    breakout_down = last_close < recent_low
+
     body_size = abs(last_close - last_open)
     body_ok = body_size >= (last_atr * cfg.min_body_atr_ratio)
     ema_distance_ok = abs(last_close - fast_now) <= (last_atr * cfg.max_ema_distance_atr)
 
-    breakout_up = last_close > recent_high
-    breakout_down = last_close < recent_low
+    # FVG (3-candle inefficiency)
+    bullish_fvg_gap = max(0.0, low[-1] - high[-3])
+    bearish_fvg_gap = max(0.0, low[-3] - high[-1])
+    bullish_fvg = bullish_fvg_gap >= (last_atr * cfg.fvg_min_gap_atr)
+    bearish_fvg = bearish_fvg_gap >= (last_atr * cfg.fvg_min_gap_atr)
 
-    if trend_up and breakout_up and body_ok and ema_distance_ok and 48 <= last_rsi <= 72:
-        return "LONG", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
-    if trend_down and breakout_down and body_ok and ema_distance_ok and 28 <= last_rsi <= 52:
-        return "SHORT", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
+    # Order-block proxy: previous candle opposite + current candle sweep/break
+    bullish_ob = close[-2] < open_[-2] and close[-1] > high[-2]
+    bearish_ob = close[-2] > open_[-2] and close[-1] < low[-2]
+
+    structure_long_ok = bullish_fvg or bullish_ob
+    structure_short_ok = bearish_fvg or bearish_ob
+
+    if trend_up and breakout_up and body_ok and ema_distance_ok and structure_long_ok and 48 <= last_rsi <= 72:
+        return "LONG", {
+            "price": last_close,
+            "rsi": last_rsi,
+            "atr": last_atr,
+            "atr_pct": atr_pct,
+            "fvg": 1.0 if bullish_fvg else 0.0,
+            "ob": 1.0 if bullish_ob else 0.0,
+        }
+
+    if trend_down and breakout_down and body_ok and ema_distance_ok and structure_short_ok and 28 <= last_rsi <= 52:
+        return "SHORT", {
+            "price": last_close,
+            "rsi": last_rsi,
+            "atr": last_atr,
+            "atr_pct": atr_pct,
+            "fvg": 1.0 if bearish_fvg else 0.0,
+            "ob": 1.0 if bearish_ob else 0.0,
+        }
 
     return "HOLD", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
 
@@ -356,9 +386,10 @@ def run_once(
         print(f"[{symbol}] SKIP | 계산 수량이 최소 주문 수량 미만입니다.")
         return
 
+    structure = f"FVG={int(meta.get('fvg', 0))} OB={int(meta.get('ob', 0))}"
     signal_message = (
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
-        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT"
+        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT {structure}"
     )
     print(signal_message)
     maybe_notify(tg_bot_token, tg_chat_id, signal_message)
@@ -381,7 +412,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Bitget BTC/ETH futures assistant bot")
     parser.add_argument("--mode", choices=["recommend", "auto"], default="recommend")
     parser.add_argument("--symbols", nargs="+", default=list(ALLOWED_SYMBOLS))
-    parser.add_argument("--timeframe", default="15m")
+    parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--loop", action="store_true", help="지속 실행")
     parser.add_argument("--interval", type=int, default=60, help="loop 모드 폴링 간격(초)")
     parser.add_argument("--status", action="store_true", help="오늘 상태(state.json)만 출력")
