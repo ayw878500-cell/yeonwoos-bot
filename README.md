@@ -1,42 +1,63 @@
-# ⚠️ 현재 설정은 요청에 따라 기본이 실전모드입니다
+# 비트겟 자동매매 봇 (완전 쉬운 설명 + 사전작업부터 끝까지)
 
-- `DRY_RUN=false`
-- `LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING`
-- `ARMED_TRADING=true`
-
-즉, API 키가 유효하면 주문이 실제로 나갈 수 있습니다.
+이 문서는 **컴퓨터 초보도 그대로 따라할 수 있게** 썼습니다.
+이번에는 띄엄띄엄이 아니라, **시작 전에 뭘 준비해야 하는지(사전작업)**부터 순서대로 설명합니다.
 
 ---
 
-# 비트겟 자동매매 봇 (완전 쉬운 설명)
+## 0) 진짜 먼저: 쉬운 단어 설명
 
-이 파일은 **컴퓨터 초보도 따라할 수 있게** 쓴 설명서입니다.
-어려운 말은 최대한 빼고, 꼭 필요한 것만 순서대로 적었습니다.
-
----
-
-## 0. 먼저 꼭 알아야 하는 것
-
-- 이 프로그램은 자동으로 매매를 도와주는 도구예요.
-- 돈을 무조건 벌게 해주는 프로그램은 절대 아니에요.
-- 현재는 요청대로 기본이 실전모드라서, 키 입력 전 반드시 다시 확인해야 해요.
+- **PowerShell**: 윈도우에서 명령어 입력하는 검은/파란 창
+- **폴더**: 파일 들어있는 보관함
+- **프로젝트 폴더**: 이 봇 파일들이 들어있는 폴더 (`bot.py`, `README.md` 있는 곳)
+- **API KEY / SECRET / PASSPHRASE**: 비트겟 계정과 프로그램을 연결하는 비밀번호 3종 세트
+- **.env 파일**: 내 키/설정을 적어두는 메모장 파일
+- **실전모드**: 진짜 주문이 나가는 모드
+- **로그(log)**: 프로그램이 무슨 일을 했는지 기록한 일지
 
 ---
 
-## 1. 준비물
+## 1) 사전작업 (이거 먼저 안 하면 뒤에서 막힙니다)
 
-1) Windows 컴퓨터
-2) Python 설치
-3) 비트겟 API 정보 3개
+### 1-1. Python 설치
+1. 브라우저에서 `python.org` 접속
+2. Python 3.10 이상 설치
+3. 설치할 때 **Add Python to PATH** 체크
+
+확인 방법(필수):
+```powershell
+python --version
+```
+버전 숫자가 나오면 성공입니다.
+
+### 1-2. Git 설치 (PR 내려받을 때 필요)
+1. 브라우저에서 `git-scm.com` 접속
+2. 기본 옵션으로 설치
+
+확인 방법:
+```powershell
+git --version
+```
+
+### 1-3. 비트겟 API 만들기
+비트겟에서 API를 만들고 아래 3개를 따로 메모해두세요.
 - API KEY
 - SECRET
 - PASSPHRASE
 
+> 아주 중요: 출금 권한은 주지 마세요.
+
+### 1-4. 프로젝트 폴더 준비
+예시:
+```text
+C:\Users\내이름\Desktop\yeonwoos-bot
+```
+
 ---
 
-## 2. 딱 한 번만 하는 설치 (복붙 순서)
+## 2) 설치 순서 (복붙용, 한 줄씩 그대로)
 
-PowerShell을 관리자 권한으로 열고, 아래를 순서대로 입력하세요.
+PowerShell을 **관리자 권한**으로 열고 아래 순서대로 입력:
 
 ```powershell
 cd <프로젝트_폴더>
@@ -44,19 +65,27 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 .\windows\install_autostart.ps1
 ```
 
-여기까지 하면 자동 실행 준비가 끝나요.
+여기까지 하면:
+- 가상환경 생성
+- 필요한 패키지 설치
+- `.env` 파일 준비
+- 윈도우 로그인 시 자동실행 등록
+이 끝납니다.
 
 ---
 
-## 3. `.env` 파일에 내 정보 넣기
+## 3) `.env` 파일 채우기 (가장 중요)
 
-프로젝트 폴더에 있는 `.env` 파일을 열고 아래 3개를 내 값으로 바꾸세요.
+프로젝트 폴더의 `.env` 파일을 메모장으로 열고,
+아래 3줄을 **내 진짜 값**으로 바꾸세요.
 
-- `BITGET_API_KEY=...`
-- `BITGET_API_SECRET=...`
-- `BITGET_API_PASSPHRASE=...`
+```env
+BITGET_API_KEY=여기에_내_API키
+BITGET_API_SECRET=여기에_내_SECRET
+BITGET_API_PASSPHRASE=여기에_내_패스프레이즈
+```
 
-그리고 처음에는 아래처럼 꼭 저장하세요.
+현재 기본값은 요청에 따라 실전모드입니다:
 
 ```env
 DRY_RUN=false
@@ -64,80 +93,72 @@ LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
 ARMED_TRADING=true
 ```
 
-이 상태는 **실제 주문이 나갈 수 있는 실전모드**예요.
+뜻:
+- `DRY_RUN=false` = 연습이 아니라 실제 주문 허용
+- `LIVE_CONFIRM=...` = 실전모드 확인 문구
+- `ARMED_TRADING=true` = 실전모드 스위치 ON
 
 ---
 
-## 4. 실행 확인 (진짜 중요한 확인)
-
-PowerShell에서 아래 실행:
+## 4) 첫 실행 확인 (무조건 해야 함)
 
 ```powershell
+cd <프로젝트_폴더>
 .\.venv\Scripts\python.exe bot.py
 ```
 
-로그 파일도 확인:
+이제 로그를 확인하세요:
 - `logs/bot.out.log`
 - `logs/bot.err.log`
 
-오류가 없으면 정상이에요.
+체크 포인트:
+1. 에러가 계속 쌓이지 않는지
+2. API 인증 오류가 없는지
+3. 주문 관련 메시지가 정상적으로 찍히는지
 
 ---
 
-## 5. 자동실행 확인
+## 5) 자동실행 확인 (컴퓨터 켤 때 자동)
 
-이 봇은 Windows 로그인하면 자동 실행되도록 되어 있어요.
-작업 스케줄러에서 아래 이름을 확인하세요.
-
-- `YeonwooBitgetBot`
-
----
-
-## 6. 실전으로 바꿀 때 (정말 조심)
-
-아래 3개를 **같이** 바꿔야 실주문이 나가요.
-
-```env
-DRY_RUN=false
-LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
-ARMED_TRADING=true
-```
-
-셋 중 하나라도 다르면 실주문이 안 나가게 막아놨어요.
+1. `작업 스케줄러` 열기
+2. `작업 스케줄러 라이브러리` 클릭
+3. `YeonwooBitgetBot` 작업 있는지 확인
+4. 상태가 Ready/Running인지 확인
 
 ---
 
-## 7. 자주 나는 오류 해결
+## 6) 오류 나면 이렇게 해결
 
-### `No module named 'requests'` 라고 뜰 때
-
-아래를 그대로 실행하세요.
-
+### 6-1. `No module named 'requests'`
 ```powershell
+cd <프로젝트_폴더>
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -c "import requests; print(requests.__version__)"
 ```
 
-버전 숫자가 나오면 해결된 거예요.
+### 6-2. PowerShell 실행정책 오류
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+### 6-3. API 인증 실패
+- `.env`의 KEY/SECRET/PASSPHRASE 오타 확인
+- 앞뒤 공백 확인
+- 비트겟에서 API 권한/상태 확인
 
 ---
 
-## 8. 꼭 지켜야 하는 안전 순서
+## 7) 진짜 마지막 체크리스트
 
-1. 연습모드로 3~7일 먼저 돌리기
-2. 아주 작은 금액으로 실전 시작
-3. 문제 생기면 바로 중지
-4. 로그 보고 원인 확인 후 다시 시작
-
----
-
-## 마지막 한 줄 요약
-
-**현재 요청 반영으로 기본이 실전모드입니다. 주문 전 키/수량을 반드시 다시 확인하세요.**
+- [ ] Python 설치 확인했는가? (`python --version`)
+- [ ] Git 설치 확인했는가? (`git --version`)
+- [ ] `.env`에 내 API 3개 정확히 넣었는가?
+- [ ] 로그 파일에서 에러 없는지 봤는가?
+- [ ] 자동실행 작업(`YeonwooBitgetBot`)이 등록됐는가?
 
 ---
 
 ## 면책
 
-이 코드는 공부/연습용입니다. 손실 책임은 본인에게 있습니다.
+이 코드는 교육/연습용입니다. 실거래 손익 책임은 사용자 본인에게 있습니다.
