@@ -40,7 +40,7 @@ python trader_bot.py --reset-day --status
 
 ### 자동매매 실행 (신호 발생 시 즉시 실주문)
 ```bash
-python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 5m --loop --interval 60 --balance-allocation 0.3
+python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 5m --loop --interval 60 --balance-allocation 0.3  # 기본 레버리지 30x
 ```
 
 ### 시드(자본)와 1회 리스크 직접 지정
@@ -49,7 +49,7 @@ python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 
 ```
 - `--account-size 1000` = 포지션 계산용 시드를 1000 USDT로 고정
 - `--risk-per-trade 0.01` = fallback 리스크 계산 비율(기본 0.5%, 수량 계산 불가 시)
-- `--balance-allocation 0.3` = 시드 30% 사용 (보수적 기본값)
+- `--balance-allocation 0.3` = 시드 30% 사용 (기본값)
 
 
 
@@ -87,7 +87,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 - 포지션 사이즈: 시드의 allocation(기본 30%) * 레버리지 기준으로 계산
 - auto 모드에서는 신호 발생 시 즉시 실주문 시도
 - 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
-- 기본 레버리지: 5배 (보수적)
+- 기본 레버리지: 30배 (공격적)
 
 
 ### 진입 타점 기준(현재 로직)
@@ -142,13 +142,13 @@ python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --positio
 ```
 
 
-## 권장 보수 세팅(기본값 반영)
+## 현재 기본 세팅(요청 반영)
 - 일일 목표 수익: `+3%`
 - 일일 최대 손실: `-3%`
 - 손실 포지션 제한: `2회`
 - 1회 리스크 비율: `0.5%`
 - 시드 사용 비율: `30%`
-- 기본 레버리지: `5x`
+- 기본 레버리지: `30x`
 
 ## 추가 추천(강력 권장)
 1. **뉴스/이벤트 필터**: CPI/FOMC 전후 일정 시간 신규 진입 금지

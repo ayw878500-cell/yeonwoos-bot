@@ -31,7 +31,7 @@ class BotConfig:
     mode: str = "recommend"  # recommend | auto
     timeframe: str = "5m"
     candle_limit: int = 250
-    leverage: int = 5
+    leverage: int = 30
     account_size_override: float = 0.0  # 0이면 거래소 USDT 잔고 사용
 
     # risk guardrails
@@ -39,7 +39,7 @@ class BotConfig:
     max_losing_positions: int = 2
     max_daily_drawdown: float = 0.03
     risk_per_trade: float = 0.005
-    balance_allocation: float = 0.3  # 보수적 기본: 시드 30% 사용
+    balance_allocation: float = 0.3  # 기본: 시드 30% 사용
     sl_atr_mult: float = 1.5
     tp_rr_ratio: float = 2.0
 
