@@ -385,6 +385,11 @@ def maybe_notify(bot_token: Optional[str], chat_id: Optional[str], text: str) ->
         print(f"[WARN] 텔레그램 알림 실패: {exc}")
 
 
+def format_error(exc: Exception) -> str:
+    text = str(exc).strip()
+    return text if text else exc.__class__.__name__
+
+
 def run_once(
     exchange: "ccxt.bitget",
     symbol: str,
@@ -413,7 +418,13 @@ def run_once(
         print(f"[{symbol}] SKIP | 뉴스/이벤트 필터 활성화: {event_name} 전후 차단 구간")
         return
 
-    candles = exchange.fetch_ohlcv(symbol, timeframe=cfg.timeframe, limit=cfg.candle_limit)
+    try:
+        candles = exchange.fetch_ohlcv(symbol, timeframe=cfg.timeframe, limit=cfg.candle_limit)
+    except Exception as exc:
+        err = format_error(exc)
+        print(f"[{symbol}] DATA FAIL | {err}")
+        maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 시세 조회 실패: {err}")
+        return
     sig, meta = calc_signal(candles, cfg)
     price = meta["price"]
 
@@ -435,7 +446,13 @@ def run_once(
         take_profit = price - (stop_price - price) * cfg.tp_rr_ratio
         side = "sell"
 
-    exchange_balance = float(exchange.fetch_balance().get("USDT", {}).get("free", 0.0))
+    try:
+        exchange_balance = float(exchange.fetch_balance().get("USDT", {}).get("free", 0.0))
+    except Exception as exc:
+        err = format_error(exc)
+        print(f"[{symbol}] BALANCE FAIL | {err}")
+        maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 잔고 조회 실패: {err}")
+        return
     effective_balance = cfg.account_size_override if cfg.account_size_override > 0 else exchange_balance
     risk_usdt = effective_balance * cfg.risk_per_trade
     qty = position_size(effective_balance, price, stop_price, cfg.risk_per_trade, cfg.leverage, cfg.balance_allocation)
@@ -465,20 +482,21 @@ def run_once(
         try:
             order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=params)
         except Exception as exc:
-            msg = str(exc)
+            msg = format_error(exc)
             if cfg.position_mode == "oneway" and ("40774" in msg or "unilateral" in msg.lower()):
                 # 일부 계정/ccxt 조합에서는 문자열 oneWayMode + tradeSide=open이 필요.
                 retry_params = {"marginMode": cfg.margin_mode, "oneWayMode": "true", "tradeSide": "open"}
                 try:
                     order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=retry_params)
                 except Exception as retry_exc:
-                    print(f"[{symbol}] ORDER FAIL | {retry_exc}")
+                    retry_msg = format_error(retry_exc)
+                    print(f"[{symbol}] ORDER FAIL | {retry_msg}")
                     print("  -> 해결 가이드: 비트겟 포지션 모드를 '단방향(One-way)'으로 맞추거나, --position-mode 값을 확인하세요.")
-                    maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {retry_exc}")
+                    maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {retry_msg}")
                     return
             else:
-                print(f"[{symbol}] ORDER FAIL | {exc}")
-                maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {exc}")
+                print(f"[{symbol}] ORDER FAIL | {msg}")
+                maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {msg}")
                 return
         state.trades += 1
         order_message = f"  -> order_id={order.get('id')}"
@@ -551,13 +569,23 @@ def main() -> None:
             state = load_state()
             print_state(state)
             for symbol in args.symbols:
-                run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
+                try:
+                    run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
+                except Exception as exc:
+                    err = format_error(exc)
+                    print(f"[{symbol}] RUN FAIL | {err}")
+                    maybe_notify(args.telegram_bot_token or None, args.telegram_chat_id or None, f"[{symbol}] 실행 실패: {err}")
             save_state(state)
             time.sleep(args.interval)
     else:
         print_state(state)
         for symbol in args.symbols:
-            run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
+            try:
+                run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
+            except Exception as exc:
+                err = format_error(exc)
+                print(f"[{symbol}] RUN FAIL | {err}")
+                maybe_notify(args.telegram_bot_token or None, args.telegram_chat_id or None, f"[{symbol}] 실행 실패: {err}")
         save_state(state)
 
 

@@ -134,6 +134,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 ## 트러블슈팅
 - `code: 40774`, `The order type for unilateral position ...` 에러가 나오면 비트겟 계정 포지션 모드(단방향/양방향)와 주문 파라미터가 맞지 않는 경우입니다.
 - 기본값은 `--position-mode oneway`이며, 계정이 양방향(hedge)라면 `--position-mode hedge`로 실행하세요.
+- 최신 버전은 주문/시세/잔고 오류를 트레이스백으로 종료하지 않고 `ORDER FAIL` / `DATA FAIL` / `BALANCE FAIL` 로그로 표시합니다.
 - 예시:
 
 ```bash
