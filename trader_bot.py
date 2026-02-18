@@ -52,6 +52,7 @@ class BotConfig:
     min_body_atr_ratio: float = 0.2
     max_ema_distance_atr: float = 1.2
     fvg_min_gap_atr: float = 0.10
+    signal_score_threshold: float = 3.0
 
 
 @dataclasses.dataclass
@@ -177,10 +178,32 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     bullish_ob = close[-2] < open_[-2] and close[-1] > high[-2]
     bearish_ob = close[-2] > open_[-2] and close[-1] < low[-2]
 
-    structure_long_ok = bullish_fvg or bullish_ob
-    structure_short_ok = bearish_fvg or bearish_ob
+    rsi_long_ok = 48 <= last_rsi <= 72
+    rsi_short_ok = 28 <= last_rsi <= 52
 
-    if trend_up and breakout_up and body_ok and ema_distance_ok and structure_long_ok and 48 <= last_rsi <= 72:
+    # 조건 유동 점수화(모든 조건 강제 X)
+    long_score = (
+        (1.0 if trend_up else 0.0)
+        + (1.0 if breakout_up else 0.0)
+        + (0.7 if body_ok else 0.0)
+        + (0.5 if ema_distance_ok else 0.0)
+        + (0.9 if bullish_fvg else 0.0)
+        + (0.9 if bullish_ob else 0.0)
+        + (0.8 if rsi_long_ok else 0.0)
+    )
+    short_score = (
+        (1.0 if trend_down else 0.0)
+        + (1.0 if breakout_down else 0.0)
+        + (0.7 if body_ok else 0.0)
+        + (0.5 if ema_distance_ok else 0.0)
+        + (0.9 if bearish_fvg else 0.0)
+        + (0.9 if bearish_ob else 0.0)
+        + (0.8 if rsi_short_ok else 0.0)
+    )
+
+    threshold = cfg.signal_score_threshold
+
+    if long_score >= threshold and long_score > short_score:
         return "LONG", {
             "price": last_close,
             "rsi": last_rsi,
@@ -188,9 +211,11 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
             "atr_pct": atr_pct,
             "fvg": 1.0 if bullish_fvg else 0.0,
             "ob": 1.0 if bullish_ob else 0.0,
+            "score": long_score,
+            "threshold": threshold,
         }
 
-    if trend_down and breakout_down and body_ok and ema_distance_ok and structure_short_ok and 28 <= last_rsi <= 52:
+    if short_score >= threshold and short_score > long_score:
         return "SHORT", {
             "price": last_close,
             "rsi": last_rsi,
@@ -198,9 +223,19 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
             "atr_pct": atr_pct,
             "fvg": 1.0 if bearish_fvg else 0.0,
             "ob": 1.0 if bearish_ob else 0.0,
+            "score": short_score,
+            "threshold": threshold,
         }
 
-    return "HOLD", {"price": last_close, "rsi": last_rsi, "atr": last_atr, "atr_pct": atr_pct}
+    return "HOLD", {
+        "price": last_close,
+        "rsi": last_rsi,
+        "atr": last_atr,
+        "atr_pct": atr_pct,
+        "long_score": long_score,
+        "short_score": short_score,
+        "threshold": threshold,
+    }
 
 
 def position_size(balance: float, entry: float, stop: float, risk_per_trade: float) -> float:
@@ -363,7 +398,11 @@ def run_once(
     price = meta["price"]
 
     if sig == "HOLD":
-        print(f"[{symbol}] HOLD | price={price:.2f}, rsi={meta.get('rsi', 0):.2f}, atr_pct={meta.get('atr_pct', 0):.4f}")
+        print(
+            f"[{symbol}] HOLD | price={price:.2f}, rsi={meta.get('rsi', 0):.2f}, atr_pct={meta.get('atr_pct', 0):.4f} "
+            f"long_score={meta.get('long_score', 0):.2f} short_score={meta.get('short_score', 0):.2f} "
+            f"threshold={meta.get('threshold', 0):.2f}"
+        )
         return
 
     atr_v = meta["atr"]
@@ -389,7 +428,8 @@ def run_once(
     structure = f"FVG={int(meta.get('fvg', 0))} OB={int(meta.get('ob', 0))}"
     signal_message = (
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
-        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT {structure}"
+        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT "
+        f"score={meta.get('score', 0):.2f}/{meta.get('threshold', 0):.2f} {structure}"
     )
     print(signal_message)
     maybe_notify(tg_bot_token, tg_chat_id, signal_message)
