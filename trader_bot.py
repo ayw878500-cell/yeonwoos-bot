@@ -397,6 +397,76 @@ def normalize_amount(exchange: "ccxt.bitget", symbol: str, qty: float) -> float:
     return amt
 
 
+def normalize_price(exchange: "ccxt.bitget", symbol: str, price: float) -> float:
+    try:
+        return float(exchange.price_to_precision(symbol, price))
+    except Exception:
+        return price
+
+
+def place_exit_orders(
+    exchange: "ccxt.bitget",
+    symbol: str,
+    entry_side: str,
+    qty: float,
+    take_profit: float,
+    stop_price: float,
+    cfg: BotConfig,
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Try to place TP/SL reduce-only orders with Bitget/ccxt fallback params.
+
+    Returns (tp_order_id, sl_order_id, error_text).
+    """
+    close_side = "sell" if entry_side == "buy" else "buy"
+    tp = normalize_price(exchange, symbol, take_profit)
+    sl = normalize_price(exchange, symbol, stop_price)
+    base_params = {"marginMode": cfg.margin_mode, "reduceOnly": True}
+    if cfg.position_mode == "oneway":
+        base_params["oneWayMode"] = True
+
+    tp_order_id: Optional[str] = None
+    sl_order_id: Optional[str] = None
+    errors: List[str] = []
+
+    # TP: reduce-only limit
+    try:
+        tp_order = exchange.create_order(
+            symbol=symbol,
+            type="limit",
+            side=close_side,
+            amount=qty,
+            price=tp,
+            params=base_params,
+        )
+        tp_order_id = str(tp_order.get("id"))
+    except Exception as exc:
+        errors.append(f"TP:{format_error(exc)}")
+
+    # SL: stop market, try several param styles for exchange/ccxt variations.
+    sl_param_candidates = [
+        {**base_params, "stopPrice": sl, "triggerPrice": sl, "closeOnTrigger": True},
+        {**base_params, "stopPrice": sl, "closeOnTrigger": True},
+        {**base_params, "triggerPrice": sl, "closeOnTrigger": True},
+    ]
+    for params in sl_param_candidates:
+        try:
+            sl_order = exchange.create_order(
+                symbol=symbol,
+                type="market",
+                side=close_side,
+                amount=qty,
+                params=params,
+            )
+            sl_order_id = str(sl_order.get("id"))
+            break
+        except Exception as exc:
+            errors.append(f"SL:{format_error(exc)}")
+
+    if tp_order_id and sl_order_id:
+        return tp_order_id, sl_order_id, None
+    return tp_order_id, sl_order_id, " | ".join(errors) if errors else "TP/SL 주문 생성 실패"
+
+
 def print_state(state: DayState) -> None:
     print(f"[STATE] date={state.date} daily_pnl={state.daily_pnl:.2%} losing_positions={state.losing_positions} trades={state.trades}")
 
@@ -535,6 +605,27 @@ def run_once(
         order_message = f"  -> order_id={order.get('id')}"
         print(order_message)
         maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 실주문 완료 {order_message}")
+
+        tp_order_id, sl_order_id, exit_err = place_exit_orders(
+            exchange=exchange,
+            symbol=symbol,
+            entry_side=side,
+            qty=qty,
+            take_profit=take_profit,
+            stop_price=stop_price,
+            cfg=cfg,
+        )
+
+        if tp_order_id and sl_order_id:
+            exit_message = f"  -> exit_orders tp_id={tp_order_id} sl_id={sl_order_id}"
+            print(exit_message)
+            maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 익절/손절 주문 등록 완료 {exit_message}")
+        else:
+            warn_msg = f"[{symbol}] EXIT ORDER WARN | TP/SL 주문 일부 또는 전체 실패"
+            print(warn_msg)
+            if exit_err:
+                print(f"  -> detail: {exit_err}")
+            maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 익절/손절 주문 등록 실패: {exit_err or 'unknown'}")
     else:
         print("  -> recommendation 모드: 주문 미실행")
 

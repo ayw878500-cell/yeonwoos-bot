@@ -108,7 +108,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 - 손절: ATR 기반 (`SL = 1.5 * ATR`)
 - 익절: 손익비 1:2
 - 포지션 사이즈: 시드의 allocation(기본 30%) * 레버리지 기준으로 계산
-- auto 모드에서는 신호 발생 시 즉시 실주문 시도
+- auto 모드에서는 신호 발생 시 즉시 실주문 후, TP/SL(익절/손절) reduce-only 청산 주문을 자동 등록 시도
 - 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
 - 기본 레버리지: 30배 (공격적)
 
@@ -160,6 +160,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `code: 40774`, `The order type for unilateral position ...` 에러가 나오면 비트겟 계정 포지션 모드(단방향/양방향)와 주문 파라미터가 맞지 않는 경우입니다.
 - 기본값은 `--position-mode oneway`이며, 계정이 양방향(hedge)라면 `--position-mode hedge`로 실행하세요.
 - 최신 버전은 주문/시세/잔고 오류를 트레이스백으로 종료하지 않고 `ORDER FAIL` / `DATA FAIL` / `BALANCE FAIL` 로그로 표시합니다.
+- TP/SL 등록이 거래소 파라미터 제약으로 일부 실패할 수 있으며, 이 경우 `EXIT ORDER WARN` 로그/텔레그램으로 원인이 출력됩니다.
 - 예시:
 
 ```bash
