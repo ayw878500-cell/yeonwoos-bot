@@ -38,9 +38,9 @@ python trader_bot.py --status
 python trader_bot.py --reset-day --status
 ```
 
-### 자동매매 실행 (실주문, 확인 플래그 필수)
+### 자동매매 실행 (신호 발생 시 즉시 실주문)
 ```bash
-python trader_bot.py --mode auto --confirm-live --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 5m --loop --interval 60
+python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 5m --loop --interval 60
 ```
 
 ### 시드(자본)와 1회 리스크 직접 지정
@@ -48,7 +48,8 @@ python trader_bot.py --mode auto --confirm-live --symbols BTC/USDT:USDT ETH/USDT
 python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 --symbols BTC/USDT:USDT ETH/USDT:USDT
 ```
 - `--account-size 1000` = 포지션 계산용 시드를 1000 USDT로 고정
-- `--risk-per-trade 0.01` = 1회 트레이드 최대 손실 허용 1%
+- `--risk-per-trade 0.01` = fallback 리스크 계산 비율(기본 수량 계산 불가 시)
+- `--balance-allocation 1.0` = 시드 100% 사용 (기본값)
 
 
 
@@ -83,8 +84,8 @@ python trader_bot.py --mode recommend --loop --interval 60
 - 신호(보완): EMA/돌파/바디/FVG/오더블럭/RSI를 점수화한 유동 진입 (5분봉 단타 기본)
 - 손절: ATR 기반 (`SL = 1.5 * ATR`)
 - 익절: 손익비 1:2
-- 포지션 사이즈: 계좌의 `1%`만 리스크로 계산
-- 실주문 안전장치: `--confirm-live` 없으면 auto 모드라도 주문 차단
+- 포지션 사이즈: 시드의 `100%`(allocation) * 레버리지 기준으로 계산
+- auto 모드에서는 신호 발생 시 즉시 실주문 시도
 - 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
 - 기본 레버리지: 10배
 
@@ -104,7 +105,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 
 자동 진입은 **반드시** 아래 두 가지가 충족되어야만 됩니다.
 1) 비트겟 API 키가 환경변수로 설정됨
-2) `--mode auto --confirm-live`로 실행함
+2) `--mode auto`로 실행함
 
 ## 파일
 - `trader_bot.py`: 실행 스크립트
@@ -118,9 +119,10 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `--status`: 오늘 상태 출력
 - `--reset-day`: 오늘 상태 초기화
 - `--show-config`: 현재 기본 리스크 설정값 출력
-- `--confirm-live`: auto 모드 실주문 허용 플래그
+- `--confirm-live`: (하위호환) 현재 auto 모드 즉시 주문
 - `--account-size`: 포지션 계산용 시드(USDT), 0이면 거래소 USDT 잔고 사용
-- `--risk-per-trade`: 1회 트레이드 리스크 비율
+- `--risk-per-trade`: fallback 리스크 비율
+- `--balance-allocation`: 시드 사용 비율(기본 1.0=100%)
 - `--telegram-bot-token`: 텔레그램 봇 토큰 (미지정 시 환경변수 사용)
 - `--telegram-chat-id`: 텔레그램 chat id (미지정 시 환경변수 사용)
 - `--events-file`: 이벤트 JSON 파일 경로

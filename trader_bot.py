@@ -39,6 +39,7 @@ class BotConfig:
     max_losing_positions: int = 3
     max_daily_drawdown: float = 0.05
     risk_per_trade: float = 0.01
+    balance_allocation: float = 1.0  # 1.0 = 시드 100% 사용
     sl_atr_mult: float = 1.5
     tp_rr_ratio: float = 2.0
 
@@ -238,12 +239,29 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     }
 
 
-def position_size(balance: float, entry: float, stop: float, risk_per_trade: float) -> float:
-    risk_amount = max(balance, 0.0) * risk_per_trade
-    unit_risk = abs(entry - stop)
-    if unit_risk <= 0:
+def position_size(
+    balance: float,
+    entry: float,
+    stop: float,
+    risk_per_trade: float,
+    leverage: int,
+    allocation: float,
+) -> float:
+    # 기본: 시드의 allocation(기본 100%)를 레버리지 반영해 진입 수량 계산
+    allocated = max(balance, 0.0) * max(min(allocation, 1.0), 0.0)
+    notional = allocated * max(leverage, 1)
+    if entry <= 0:
         return 0.0
-    return risk_amount / unit_risk
+    qty = notional / entry
+
+    # allocation이 0이거나 계산상 비정상이면 기존 리스크 방식으로 fallback
+    if qty <= 0:
+        risk_amount = max(balance, 0.0) * max(min(risk_per_trade, 1.0), 0.0)
+        unit_risk = abs(entry - stop)
+        if unit_risk <= 0:
+            return 0.0
+        return risk_amount / unit_risk
+    return qty
 
 
 def should_stop(cfg: BotConfig, state: DayState) -> Tuple[bool, str]:
@@ -418,7 +436,7 @@ def run_once(
     exchange_balance = float(exchange.fetch_balance().get("USDT", {}).get("free", 0.0))
     effective_balance = cfg.account_size_override if cfg.account_size_override > 0 else exchange_balance
     risk_usdt = effective_balance * cfg.risk_per_trade
-    qty = position_size(effective_balance, price, stop_price, cfg.risk_per_trade)
+    qty = position_size(effective_balance, price, stop_price, cfg.risk_per_trade, cfg.leverage, cfg.balance_allocation)
     qty = normalize_amount(exchange, symbol, qty)
 
     if qty <= 0:
@@ -428,7 +446,7 @@ def run_once(
     structure = f"FVG={int(meta.get('fvg', 0))} OB={int(meta.get('ob', 0))}"
     signal_message = (
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
-        f"size={qty:.6f} lev={cfg.leverage} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT "
+        f"size={qty:.6f} lev={cfg.leverage} alloc={cfg.balance_allocation:.0%} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT "
         f"score={meta.get('score', 0):.2f}/{meta.get('threshold', 0):.2f} {structure}"
     )
     print(signal_message)
@@ -436,8 +454,7 @@ def run_once(
 
     if cfg.mode == "auto":
         if not confirm_live:
-            print("  -> auto 모드 차단: --confirm-live 를 추가해야 실주문합니다.")
-            return
+            print("  -> 안내: 현재 설정은 auto 모드에서 신호 발생 시 바로 주문합니다(확인 플래그 미사용).")
         params = {"marginMode": "cross"}
         order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=params)
         state.trades += 1
@@ -461,6 +478,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--show-config", action="store_true", help="현재 리스크 설정값 출력")
     parser.add_argument("--account-size", type=float, default=0.0, help="포지션 계산용 시드(USDT). 0이면 거래소 잔고 사용")
     parser.add_argument("--risk-per-trade", type=float, default=0.01, help="1회 트레이드 리스크 비율(예: 0.01=1%%)")
+    parser.add_argument("--balance-allocation", type=float, default=1.0, help="시드 사용 비율(기본 1.0=100%%)")
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", ""), help="텔레그램 봇 토큰")
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", ""), help="텔레그램 chat id")
     parser.add_argument("--events-file", default=str(EVENTS_FILE), help="CPI/FOMC 등 이벤트 파일(JSON)")
@@ -476,6 +494,7 @@ def main() -> None:
         timeframe=args.timeframe,
         account_size_override=max(args.account_size, 0.0),
         risk_per_trade=max(min(args.risk_per_trade, 1.0), 0.0),
+        balance_allocation=max(min(args.balance_allocation, 1.0), 0.0),
     )
 
     if args.show_config:
