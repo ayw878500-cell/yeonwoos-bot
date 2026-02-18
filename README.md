@@ -49,6 +49,23 @@ python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --timefra
 python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT SOL/USDT:USDT XRP/USDT:USDT --allow-other-symbols --timeframe 5m --loop --interval 60 --balance-allocation 0.3
 ```
 
+
+### 심볼 파일로 여러 코인 관리(선택)
+`samples_symbols.txt` 같은 파일에 심볼을 줄단위로 넣고 실행할 수 있습니다.
+
+```txt
+BTC/USDT:USDT
+ETH/USDT:USDT
+SOL/USDT:USDT
+XRP/USDT:USDT
+```
+
+```bash
+python trader_bot.py --mode auto --symbols-file samples_symbols.txt --timeframe 5m --loop --interval 60 --balance-allocation 0.3
+```
+
+> `--symbols-file`를 사용하면 BTC/ETH 외 코인도 자동 허용됩니다.
+
 ### 시드(자본)와 1회 리스크 직접 지정
 ```bash
 python trader_bot.py --mode recommend --account-size 1000 --risk-per-trade 0.01 --symbols BTC/USDT:USDT ETH/USDT:USDT
@@ -121,6 +138,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 ## 주요 CLI 옵션
 - `--mode recommend|auto`
 - `--symbols BTC/USDT:USDT ETH/USDT:USDT` (원하면 다른 심볼 추가 가능)
+- `--symbols-file`: 심볼 목록 파일(.txt/.json)에서 추가 로드
 - `--loop --interval 60`
 - `--status`: 오늘 상태 출력
 - `--reset-day`: 오늘 상태 초기화

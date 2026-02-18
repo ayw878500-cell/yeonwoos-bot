@@ -288,6 +288,38 @@ def parse_event_iso8601(value: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def load_symbols_file(file_path: Path) -> List[str]:
+    if not file_path.exists():
+        return []
+    try:
+        raw = file_path.read_text().strip()
+    except Exception:
+        return []
+    if not raw:
+        return []
+
+    # JSON 배열 또는 줄단위 텍스트 둘 다 허용
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                out = []
+                for item in parsed:
+                    if isinstance(item, str) and item.strip():
+                        out.append(item.strip())
+                return out
+        except Exception:
+            return []
+
+    out = []
+    for line in raw.splitlines():
+        item = line.strip()
+        if not item or item.startswith("#"):
+            continue
+        out.append(item)
+    return out
+
+
 def load_block_events(file_path: Path) -> List[dict]:
     if not file_path.exists():
         return []
@@ -511,6 +543,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Bitget BTC/ETH futures assistant bot")
     parser.add_argument("--mode", choices=["recommend", "auto"], default="recommend")
     parser.add_argument("--symbols", nargs="+", default=list(ALLOWED_SYMBOLS))
+    parser.add_argument("--symbols-file", default="", help="심볼 목록 파일(.txt/.json). 줄단위 또는 JSON 배열")
     parser.add_argument("--timeframe", default="5m")
     parser.add_argument("--loop", action="store_true", help="지속 실행")
     parser.add_argument("--interval", type=int, default=60, help="loop 모드 폴링 간격(초)")
@@ -542,7 +575,7 @@ def main() -> None:
         balance_allocation=max(min(args.balance_allocation, 1.0), 0.0),
         margin_mode=args.margin_mode,
         position_mode=args.position_mode,
-        allow_other_symbols=args.allow_other_symbols,
+        allow_other_symbols=args.allow_other_symbols or bool(args.symbols_file),
     )
 
     if args.show_config:
@@ -560,6 +593,18 @@ def main() -> None:
         print_state(state)
         return
 
+    symbols = list(args.symbols)
+    if args.symbols_file:
+        file_symbols = load_symbols_file(Path(args.symbols_file))
+        if file_symbols:
+            merged = []
+            for sym in symbols + file_symbols:
+                if sym not in merged:
+                    merged.append(sym)
+            symbols = merged
+        else:
+            print(f"[WARN] symbols-file 로드 실패 또는 비어있음: {args.symbols_file}")
+
     exchange = make_exchange()
     events = load_block_events(Path(args.events_file))
     if events:
@@ -571,7 +616,7 @@ def main() -> None:
         while True:
             state = load_state()
             print_state(state)
-            for symbol in args.symbols:
+            for symbol in symbols:
                 try:
                     run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
                 except Exception as exc:
@@ -582,7 +627,7 @@ def main() -> None:
             time.sleep(args.interval)
     else:
         print_state(state)
-        for symbol in args.symbols:
+        for symbol in symbols:
             try:
                 run_once(exchange, symbol, cfg, state, args.confirm_live, args.telegram_bot_token or None, args.telegram_chat_id or None, events, max(args.block_before_min,0), max(args.block_after_min,0))
             except Exception as exc:
