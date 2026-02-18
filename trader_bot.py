@@ -31,15 +31,15 @@ class BotConfig:
     mode: str = "recommend"  # recommend | auto
     timeframe: str = "5m"
     candle_limit: int = 250
-    leverage: int = 10
+    leverage: int = 5
     account_size_override: float = 0.0  # 0이면 거래소 USDT 잔고 사용
 
     # risk guardrails
-    daily_take_profit: float = 0.10
-    max_losing_positions: int = 3
-    max_daily_drawdown: float = 0.05
-    risk_per_trade: float = 0.01
-    balance_allocation: float = 1.0  # 1.0 = 시드 100% 사용
+    daily_take_profit: float = 0.03
+    max_losing_positions: int = 2
+    max_daily_drawdown: float = 0.03
+    risk_per_trade: float = 0.005
+    balance_allocation: float = 0.3  # 보수적 기본: 시드 30% 사용
     sl_atr_mult: float = 1.5
     tp_rr_ratio: float = 2.0
 
@@ -477,8 +477,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--confirm-live", action="store_true", help="auto 모드 실주문 확인 플래그")
     parser.add_argument("--show-config", action="store_true", help="현재 리스크 설정값 출력")
     parser.add_argument("--account-size", type=float, default=0.0, help="포지션 계산용 시드(USDT). 0이면 거래소 잔고 사용")
-    parser.add_argument("--risk-per-trade", type=float, default=0.01, help="1회 트레이드 리스크 비율(예: 0.01=1%%)")
-    parser.add_argument("--balance-allocation", type=float, default=1.0, help="시드 사용 비율(기본 1.0=100%%)")
+    parser.add_argument("--risk-per-trade", type=float, default=0.005, help="1회 트레이드 리스크 비율(예: 0.005=0.5%%)")
+    parser.add_argument("--balance-allocation", type=float, default=0.3, help="시드 사용 비율(기본 0.3=30%%)")
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", ""), help="텔레그램 봇 토큰")
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", ""), help="텔레그램 chat id")
     parser.add_argument("--events-file", default=str(EVENTS_FILE), help="CPI/FOMC 등 이벤트 파일(JSON)")
