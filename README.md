@@ -3,7 +3,7 @@
 비트겟 선물(BTC/ETH 전용) 자동매매/매매추천 봇 예제입니다.
 
 ## 핵심 규칙(요청사항 반영)
-- BTC, ETH만 매매 (`BTC/USDT:USDT`, `ETH/USDT:USDT`)
+- 기본은 BTC/ETH만 매매 (`BTC/USDT:USDT`, `ETH/USDT:USDT`), 필요 시 `--allow-other-symbols`로 확장 가능
 - 일일 누적 수익률 `+3%` 이상이면 당일 매매 종료
 - 당일 손실 포지션 `2회` 이상이면 당일 매매 종료
 - 추가 보호장치: 일일 최대 손실 `-3%` 도달 시 종료
@@ -41,6 +41,12 @@ python trader_bot.py --reset-day --status
 ### 자동매매 실행 (신호 발생 시 즉시 실주문)
 ```bash
 python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --timeframe 5m --loop --interval 60 --balance-allocation 0.3  # 기본 레버리지 30x
+```
+
+
+### 다른 코인도 진입 허용(선택)
+```bash
+python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT SOL/USDT:USDT XRP/USDT:USDT --allow-other-symbols --timeframe 5m --loop --interval 60 --balance-allocation 0.3
 ```
 
 ### 시드(자본)와 1회 리스크 직접 지정
@@ -114,7 +120,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 
 ## 주요 CLI 옵션
 - `--mode recommend|auto`
-- `--symbols BTC/USDT:USDT ETH/USDT:USDT`
+- `--symbols BTC/USDT:USDT ETH/USDT:USDT` (원하면 다른 심볼 추가 가능)
 - `--loop --interval 60`
 - `--status`: 오늘 상태 출력
 - `--reset-day`: 오늘 상태 초기화
@@ -125,6 +131,7 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `--balance-allocation`: 시드 사용 비율(기본 0.3=30%)
 - `--margin-mode`: 주문 마진 모드 (`cross`/`isolated`, 기본 `cross`)
 - `--position-mode`: 비트겟 포지션 모드 (`oneway`/`hedge`, 기본 `oneway`)
+- `--allow-other-symbols`: BTC/ETH 외 심볼 허용 (기본 비활성)
 - `--telegram-bot-token`: 텔레그램 봇 토큰 (미지정 시 환경변수 사용)
 - `--telegram-chat-id`: 텔레그램 chat id (미지정 시 환경변수 사용)
 - `--events-file`: 이벤트 JSON 파일 경로

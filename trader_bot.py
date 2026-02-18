@@ -56,6 +56,7 @@ class BotConfig:
     signal_score_threshold: float = 3.0
     margin_mode: str = "cross"
     position_mode: str = "oneway"  # oneway | hedge
+    allow_other_symbols: bool = False
 
 
 @dataclasses.dataclass
@@ -402,8 +403,8 @@ def run_once(
     block_before_min: int,
     block_after_min: int,
 ) -> None:
-    if symbol not in ALLOWED_SYMBOLS:
-        print(f"[SKIP] 허용되지 않은 종목: {symbol}")
+    if (not cfg.allow_other_symbols) and symbol not in ALLOWED_SYMBOLS:
+        print(f"[SKIP] 허용되지 않은 종목: {symbol} (기본 허용: BTC/ETH, 확장: --allow-other-symbols)")
         return
 
     stop, reason = should_stop(cfg, state)
@@ -527,6 +528,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--block-after-min", type=int, default=60, help="이벤트 이후 차단 분")
     parser.add_argument("--margin-mode", choices=["cross", "isolated"], default="cross", help="주문 마진 모드")
     parser.add_argument("--position-mode", choices=["oneway", "hedge"], default="oneway", help="비트겟 포지션 모드")
+    parser.add_argument("--allow-other-symbols", action="store_true", help="BTC/ETH 외 심볼 허용")
     return parser.parse_args()
 
 
@@ -540,6 +542,7 @@ def main() -> None:
         balance_allocation=max(min(args.balance_allocation, 1.0), 0.0),
         margin_mode=args.margin_mode,
         position_mode=args.position_mode,
+        allow_other_symbols=args.allow_other_symbols,
     )
 
     if args.show_config:
