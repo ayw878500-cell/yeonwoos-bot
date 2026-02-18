@@ -54,6 +54,7 @@ class BotConfig:
     max_ema_distance_atr: float = 1.2
     fvg_min_gap_atr: float = 0.10
     signal_score_threshold: float = 3.0
+    min_signal_confirmations: int = 3
     margin_mode: str = "cross"
     position_mode: str = "oneway"  # oneway | hedge
     allow_other_symbols: bool = False
@@ -206,8 +207,36 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
     )
 
     threshold = cfg.signal_score_threshold
+    min_confirmations = max(cfg.min_signal_confirmations, 1)
 
-    if long_score >= threshold and long_score > short_score:
+    long_confirmations = sum(
+        [
+            1 if trend_up else 0,
+            1 if breakout_up else 0,
+            1 if body_ok else 0,
+            1 if ema_distance_ok else 0,
+            1 if bullish_fvg else 0,
+            1 if bullish_ob else 0,
+            1 if rsi_long_ok else 0,
+        ]
+    )
+    short_confirmations = sum(
+        [
+            1 if trend_down else 0,
+            1 if breakout_down else 0,
+            1 if body_ok else 0,
+            1 if ema_distance_ok else 0,
+            1 if bearish_fvg else 0,
+            1 if bearish_ob else 0,
+            1 if rsi_short_ok else 0,
+        ]
+    )
+
+    if (
+        long_score >= threshold
+        and long_score > short_score
+        and long_confirmations >= min_confirmations
+    ):
         return "LONG", {
             "price": last_close,
             "rsi": last_rsi,
@@ -217,9 +246,15 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
             "ob": 1.0 if bullish_ob else 0.0,
             "score": long_score,
             "threshold": threshold,
+            "confirmations": float(long_confirmations),
+            "min_confirmations": float(min_confirmations),
         }
 
-    if short_score >= threshold and short_score > long_score:
+    if (
+        short_score >= threshold
+        and short_score > long_score
+        and short_confirmations >= min_confirmations
+    ):
         return "SHORT", {
             "price": last_close,
             "rsi": last_rsi,
@@ -229,6 +264,8 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
             "ob": 1.0 if bearish_ob else 0.0,
             "score": short_score,
             "threshold": threshold,
+            "confirmations": float(short_confirmations),
+            "min_confirmations": float(min_confirmations),
         }
 
     return "HOLD", {
@@ -239,6 +276,9 @@ def calc_signal(candles: List[List[float]], cfg: BotConfig) -> Tuple[str, Dict[s
         "long_score": long_score,
         "short_score": short_score,
         "threshold": threshold,
+        "long_confirmations": float(long_confirmations),
+        "short_confirmations": float(short_confirmations),
+        "min_confirmations": float(min_confirmations),
     }
 
 
@@ -535,7 +575,9 @@ def run_once(
         print(
             f"[{symbol}] HOLD | price={price:.2f}, rsi={meta.get('rsi', 0):.2f}, atr_pct={meta.get('atr_pct', 0):.4f} "
             f"long_score={meta.get('long_score', 0):.2f} short_score={meta.get('short_score', 0):.2f} "
-            f"threshold={meta.get('threshold', 0):.2f}"
+            f"threshold={meta.get('threshold', 0):.2f} "
+            f"confirm={meta.get('long_confirmations', 0):.0f}/{meta.get('short_confirmations', 0):.0f} "
+            f"min_confirm={meta.get('min_confirmations', 0):.0f}"
         )
         return
 
@@ -569,7 +611,8 @@ def run_once(
     signal_message = (
         f"[{symbol}] {sig} signal | entry={price:.2f} sl={stop_price:.2f} tp={take_profit:.2f} "
         f"size={qty:.6f} lev={cfg.leverage} alloc={cfg.balance_allocation:.0%} base_capital={effective_balance:.2f}USDT risk={risk_usdt:.2f}USDT "
-        f"score={meta.get('score', 0):.2f}/{meta.get('threshold', 0):.2f} {structure}"
+        f"score={meta.get('score', 0):.2f}/{meta.get('threshold', 0):.2f} "
+        f"confirm={meta.get('confirmations', 0):.0f}/{meta.get('min_confirmations', 0):.0f} {structure}"
     )
     print(signal_message)
     maybe_notify(tg_bot_token, tg_chat_id, signal_message)
@@ -645,6 +688,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--account-size", type=float, default=0.0, help="포지션 계산용 시드(USDT). 0이면 거래소 잔고 사용")
     parser.add_argument("--risk-per-trade", type=float, default=0.005, help="1회 트레이드 리스크 비율(예: 0.005=0.5%%)")
     parser.add_argument("--balance-allocation", type=float, default=0.3, help="시드 사용 비율(기본 0.3=30%%)")
+    parser.add_argument("--signal-score-threshold", type=float, default=3.0, help="진입 점수 임계치(기본 3.0)")
+    parser.add_argument("--min-signal-confirmations", type=int, default=3, help="진입 최소 근거 개수(기본 3)")
     parser.add_argument("--telegram-bot-token", default=os.getenv("TELEGRAM_BOT_TOKEN", ""), help="텔레그램 봇 토큰")
     parser.add_argument("--telegram-chat-id", default=os.getenv("TELEGRAM_CHAT_ID", ""), help="텔레그램 chat id")
     parser.add_argument("--events-file", default=str(EVENTS_FILE), help="CPI/FOMC 등 이벤트 파일(JSON)")
@@ -664,6 +709,8 @@ def main() -> None:
         account_size_override=max(args.account_size, 0.0),
         risk_per_trade=max(min(args.risk_per_trade, 1.0), 0.0),
         balance_allocation=max(min(args.balance_allocation, 1.0), 0.0),
+        signal_score_threshold=max(args.signal_score_threshold, 0.0),
+        min_signal_confirmations=max(args.min_signal_confirmations, 1),
         margin_mode=args.margin_mode,
         position_mode=args.position_mode,
         allow_other_symbols=args.allow_other_symbols or bool(args.symbols_file),

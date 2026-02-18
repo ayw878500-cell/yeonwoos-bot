@@ -112,6 +112,11 @@ python trader_bot.py --mode recommend --loop --interval 60
 - 뉴스/이벤트 필터: CPI/FOMC 등 이벤트 전후 지정 시간 신규 진입 차단
 - 기본 레버리지: 30배 (공격적)
 
+### 추천 추가사항(전문 트레이더 관점)
+1. **최소 진입 근거 개수 강제**: 신호 점수만 높아도 근거가 한쪽에 치우치면 스킵 (현재 기본 3개 이상).
+2. **품질 필터 분리 운영**: 점수 임계치(`--signal-score-threshold`)와 근거 개수(`--min-signal-confirmations`)를 별도로 튜닝.
+3. **시황별 모드 전환**: 횡보장엔 임계치↑, 추세장엔 임계치↓로 설정 프리셋을 나눠 오탐을 줄이기.
+
 
 ### 진입 타점 기준(현재 로직)
 - 기본 시간프레임: `5m` (단타)
@@ -124,6 +129,7 @@ python trader_bot.py --mode recommend --loop --interval 60
   - 오더블럭(프록시)
   - RSI 범위
 - 점수 합이 임계치(`signal_score_threshold`, 기본 3.0) 이상이면 진입합니다.
+- 동시에 진입 근거 개수(`min_signal_confirmations`, 기본 3개)도 충족해야 진입합니다.
 - 로그에 `score=현재점수/임계치`, `FVG=0/1`, `OB=0/1`가 표시됩니다.
 
 자동 진입은 **반드시** 아래 두 가지가 충족되어야만 됩니다.
@@ -147,6 +153,8 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `--account-size`: 포지션 계산용 시드(USDT), 0이면 거래소 USDT 잔고 사용
 - `--risk-per-trade`: fallback 리스크 비율
 - `--balance-allocation`: 시드 사용 비율(기본 0.3=30%)
+- `--signal-score-threshold`: 진입 점수 임계치(기본 3.0)
+- `--min-signal-confirmations`: 진입 최소 근거 개수(기본 3)
 - `--margin-mode`: 주문 마진 모드 (`cross`/`isolated`, 기본 `cross`)
 - `--position-mode`: 비트겟 포지션 모드 (`oneway`/`hedge`, 기본 `oneway`)
 - `--allow-other-symbols`: BTC/ETH 외 심볼 허용 (기본 비활성)
