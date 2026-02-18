@@ -4,9 +4,9 @@
 
 ## 핵심 규칙(요청사항 반영)
 - BTC, ETH만 매매 (`BTC/USDT:USDT`, `ETH/USDT:USDT`)
-- 일일 누적 수익률 `+10%` 이상이면 당일 매매 종료
-- 당일 손실 포지션 `3회` 이상이면 당일 매매 종료
-- 추가 보호장치: 일일 최대 손실 `-5%` 도달 시 종료
+- 일일 누적 수익률 `+3%` 이상이면 당일 매매 종료
+- 당일 손실 포지션 `2회` 이상이면 당일 매매 종료
+- 추가 보호장치: 일일 최대 손실 `-3%` 도달 시 종료
 
 > ⚠️ 중요: 시장에서 “하루 10% 무조건”은 보장할 수 없습니다. 이 봇은 **리스크 관리 우선**으로 목표 달성 시 거래를 멈추도록 설계했습니다.
 
@@ -122,12 +122,23 @@ python trader_bot.py --mode recommend --loop --interval 60
 - `--confirm-live`: (하위호환) 현재 auto 모드 즉시 주문
 - `--account-size`: 포지션 계산용 시드(USDT), 0이면 거래소 USDT 잔고 사용
 - `--risk-per-trade`: fallback 리스크 비율
-- `--balance-allocation`: 시드 사용 비율(기본 1.0=100%)
+- `--balance-allocation`: 시드 사용 비율(기본 0.3=30%)
+- `--margin-mode`: 주문 마진 모드 (`cross`/`isolated`, 기본 `cross`)
+- `--position-mode`: 비트겟 포지션 모드 (`oneway`/`hedge`, 기본 `oneway`)
 - `--telegram-bot-token`: 텔레그램 봇 토큰 (미지정 시 환경변수 사용)
 - `--telegram-chat-id`: 텔레그램 chat id (미지정 시 환경변수 사용)
 - `--events-file`: 이벤트 JSON 파일 경로
 - `--block-before-min`: 이벤트 이전 차단 분 (기본 60)
 - `--block-after-min`: 이벤트 이후 차단 분 (기본 60)
+
+## 트러블슈팅
+- `code: 40774`, `The order type for unilateral position ...` 에러가 나오면 비트겟 계정 포지션 모드(단방향/양방향)와 주문 파라미터가 맞지 않는 경우입니다.
+- 기본값은 `--position-mode oneway`이며, 계정이 양방향(hedge)라면 `--position-mode hedge`로 실행하세요.
+- 예시:
+
+```bash
+python trader_bot.py --mode auto --symbols BTC/USDT:USDT ETH/USDT:USDT --position-mode oneway --margin-mode cross
+```
 
 
 ## 권장 보수 세팅(기본값 반영)

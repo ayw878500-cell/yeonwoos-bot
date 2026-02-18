@@ -54,6 +54,8 @@ class BotConfig:
     max_ema_distance_atr: float = 1.2
     fvg_min_gap_atr: float = 0.10
     signal_score_threshold: float = 3.0
+    margin_mode: str = "cross"
+    position_mode: str = "oneway"  # oneway | hedge
 
 
 @dataclasses.dataclass
@@ -455,8 +457,29 @@ def run_once(
     if cfg.mode == "auto":
         if not confirm_live:
             print("  -> 안내: 현재 설정은 auto 모드에서 신호 발생 시 바로 주문합니다(확인 플래그 미사용).")
-        params = {"marginMode": "cross"}
-        order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=params)
+        params = {"marginMode": cfg.margin_mode}
+        # Bitget one-way(unilateral) 계정에서는 oneWayMode=true 파라미터가 필요할 수 있음.
+        if cfg.position_mode == "oneway":
+            params["oneWayMode"] = True
+
+        try:
+            order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=params)
+        except Exception as exc:
+            msg = str(exc)
+            if cfg.position_mode == "oneway" and ("40774" in msg or "unilateral" in msg.lower()):
+                # 일부 계정/ccxt 조합에서는 문자열 oneWayMode + tradeSide=open이 필요.
+                retry_params = {"marginMode": cfg.margin_mode, "oneWayMode": "true", "tradeSide": "open"}
+                try:
+                    order = exchange.create_order(symbol=symbol, type="market", side=side, amount=qty, params=retry_params)
+                except Exception as retry_exc:
+                    print(f"[{symbol}] ORDER FAIL | {retry_exc}")
+                    print("  -> 해결 가이드: 비트겟 포지션 모드를 '단방향(One-way)'으로 맞추거나, --position-mode 값을 확인하세요.")
+                    maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {retry_exc}")
+                    return
+            else:
+                print(f"[{symbol}] ORDER FAIL | {exc}")
+                maybe_notify(tg_bot_token, tg_chat_id, f"[{symbol}] 주문 실패: {exc}")
+                return
         state.trades += 1
         order_message = f"  -> order_id={order.get('id')}"
         print(order_message)
@@ -484,6 +507,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--events-file", default=str(EVENTS_FILE), help="CPI/FOMC 등 이벤트 파일(JSON)")
     parser.add_argument("--block-before-min", type=int, default=60, help="이벤트 이전 차단 분")
     parser.add_argument("--block-after-min", type=int, default=60, help="이벤트 이후 차단 분")
+    parser.add_argument("--margin-mode", choices=["cross", "isolated"], default="cross", help="주문 마진 모드")
+    parser.add_argument("--position-mode", choices=["oneway", "hedge"], default="oneway", help="비트겟 포지션 모드")
     return parser.parse_args()
 
 
@@ -495,6 +520,8 @@ def main() -> None:
         account_size_override=max(args.account_size, 0.0),
         risk_per_trade=max(min(args.risk_per_trade, 1.0), 0.0),
         balance_allocation=max(min(args.balance_allocation, 1.0), 0.0),
+        margin_mode=args.margin_mode,
+        position_mode=args.position_mode,
     )
 
     if args.show_config:
