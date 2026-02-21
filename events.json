@@ -1,0 +1,12 @@
+{
+  "events": [
+    {
+      "name": "US CPI",
+      "at": "2026-03-12T12:30:00Z"
+    },
+    {
+      "name": "FOMC Rate Decision",
+      "at": "2026-03-18T18:00:00Z"
+    }
+  ]
+}

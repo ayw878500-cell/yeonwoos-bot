@@ -1,0 +1,5 @@
+# Bitget swap symbols
+BTC/USDT:USDT
+ETH/USDT:USDT
+SOL/USDT:USDT
+XRP/USDT:USDT
