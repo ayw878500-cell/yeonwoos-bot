@@ -19,10 +19,10 @@ if (!(Test-Path '.env')) {
 }
 
 # 요청 반영: 기본값을 실전모드로 강제
-(Get-Content '.env') `
+(Get-Content '.env' -Raw -Encoding UTF8) `
   -replace '^DRY_RUN=.*', 'DRY_RUN=false' `
   -replace '^LIVE_CONFIRM=.*', 'LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING' `
-  -replace '^ARMED_TRADING=.*', 'ARMED_TRADING=true' | Set-Content '.env'
+  -replace '^ARMED_TRADING=.*', 'ARMED_TRADING=true' | Set-Content '.env' -Encoding UTF8
 Write-Host '[WARN] .env가 실전모드(DRY_RUN=false)로 설정되었습니다.'
 
 $TaskName = 'YeonwooBitgetBot'

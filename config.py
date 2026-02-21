@@ -1,7 +1,9 @@
 import os
+from io import StringIO
 from dataclasses import dataclass
+from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 
 @dataclass
@@ -58,8 +60,39 @@ def _to_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "y"}
 
 
+def _load_dotenv_with_fallback() -> None:
+    env_path = Path(".env")
+    if not env_path.exists():
+        load_dotenv()
+        return
+
+    raw = env_path.read_bytes()
+    decoded = None
+    used_encoding = None
+    for encoding in ("utf-8-sig", "cp949"):
+        try:
+            decoded = raw.decode(encoding)
+            used_encoding = encoding
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if decoded is None:
+        raise ConfigError(
+            ".env 파일 인코딩을 읽지 못했습니다. 메모장에서 .env를 열고 '다른 이름으로 저장' → 인코딩 UTF-8 로 저장 후 다시 실행하세요."
+        )
+
+    if used_encoding != "utf-8-sig":
+        print("[WARN] .env 파일이 UTF-8이 아니라서 cp949로 읽었습니다. 가능하면 UTF-8로 저장하세요.")
+
+    values = dotenv_values(stream=StringIO(decoded))
+    for key, value in values.items():
+        if key and value is not None and key not in os.environ:
+            os.environ[key] = value
+
+
 def load_settings() -> Settings:
-    load_dotenv()
+    _load_dotenv_with_fallback()
 
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()

@@ -158,6 +158,33 @@ cd C:\Users\user\Desktop\yeonwoos-bot
 windows\install_autostart.cmd
 ```
 
+
+
+### (4) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
+이건 대부분 `.env` 파일 인코딩이 UTF-8이 아닐 때 발생합니다.
+
+아래 순서대로 바로 해결하세요.
+
+1) `.env`를 메모장으로 열기  
+2) **파일 > 다른 이름으로 저장**  
+3) 인코딩을 **UTF-8**로 선택 후 저장  
+4) 다시 실행
+
+```powershell
+cd C:\Users\user\Desktop\yeonwoos-bot
+.\.venv\Scripts\python.exe bot.py
+```
+
+빠른 복구(새로 생성) 방법:
+
+```powershell
+cd C:\Users\user\Desktop\yeonwoos-bot
+del .env
+copy .env.example .env
+```
+
+그 다음 `.env`에 본인 API 키를 다시 넣고 실행하세요.
+
 ---
 
 ## 8) 내가 추천하는 프롬프트 추가 항목
