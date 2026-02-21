@@ -8,6 +8,7 @@
 - 텔레그램 알림
 - 손익비는 전문 트레이더들이 많이 쓰는 1:2 기본 적용
 - 6개 지표 조합 + 2개 이상 조건 일치 시 진입
+- 3m/5m/15m 추세가 같은 방향일 때만 최종 진입
 - 매일 정각(UTC 기준 설정) 일일 로그 리포트 텔레그램 전송
 
 ---
@@ -60,7 +61,6 @@ DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
 RISK_REWARD_RATIO=2.0
 MIN_ENTRY_CONDITIONS=2
-CANDLE_GRANULARITY=5m
 REPORT_HOUR_UTC=0
 DRY_RUN=false
 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
@@ -92,10 +92,11 @@ RISK_REWARD_RATIO=2.0
 
 1. 비트겟 캔들 데이터를 받아 6개 지표를 계산합니다.
    - BB(20, 2.4), EMA Cross(9/21), EMA200(EMA3 스무딩), VWAP(hlc3), RSI(7/EMA3), Stoch(5,3,3)
-2. 매수/매도 조건 중 **2개 이상** 같은 방향으로 맞으면 진입 후보가 됩니다.
-3. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
-4. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
-5. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
+2. 5m 기준으로 매수/매도 조건 중 **2개 이상** 같은 방향이면 진입 후보가 됩니다.
+3. 3m/5m/15m 추세가 모두 같은 방향인지 확인하고, 다 같을 때만 진입합니다.
+4. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
+5. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
+6. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
 
 ---
 
@@ -105,14 +106,13 @@ RISK_REWARD_RATIO=2.0
 
 ```env
 MIN_ENTRY_CONDITIONS=2
-CANDLE_GRANULARITY=5m
 REPORT_HOUR_UTC=0
 STOP_LOSS_PCT=0.01
 RISK_REWARD_RATIO=2.0
 ```
 
 - `MIN_ENTRY_CONDITIONS`: 진입에 필요한 최소 조건 수 (2~6)
-- `CANDLE_GRANULARITY`: 신호 계산 캔들 주기
+- 타임프레임은 고정으로 3m/5m/15m를 함께 사용합니다.
 - `REPORT_HOUR_UTC`: 일일 리포트 텔레그램 전송 시각(UTC)
 
 ---

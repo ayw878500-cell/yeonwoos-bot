@@ -72,7 +72,7 @@ def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float
     if stoploss_count >= settings.max_daily_stoploss:
         suggestions.append("손절 제한 도달: 다음날 포지션 크기/신호 강도 보수화 권장")
     if daily_return < 0:
-        suggestions.append("일일 손익 음수: CANDLE_GRANULARITY를 15m로 변경해 노이즈 감소 권장")
+        suggestions.append("일일 손익 음수: 3m 비중을 줄이고 5m/15m 추세 우선 확인 권장")
     if not suggestions:
         suggestions.append("현재 설정 유지 가능. 로그에서 진입 사유(reasons) 일관성 점검")
 
@@ -118,13 +118,11 @@ def main() -> None:
                 last_report_date = None
                 logger.info("[DAILY_RESET] 일일 통계 초기화")
 
-            candles = client.candles(
-                symbol=settings.symbol,
-                product_type=settings.product_type,
-                granularity=settings.candle_granularity,
-                limit=300,
-            )
-            price = candles["closes"][-1]
+            candles_3m = client.candles(settings.symbol, settings.product_type, "3m", limit=300)
+            candles_5m = client.candles(settings.symbol, settings.product_type, "5m", limit=300)
+            candles_15m = client.candles(settings.symbol, settings.product_type, "15m", limit=300)
+
+            price = candles_5m["closes"][-1]
             equity = client.account_equity(settings.symbol, settings.product_type, settings.margin_coin)
 
             if day_start_equity == 0.0:
@@ -199,12 +197,28 @@ def main() -> None:
                 continue
 
             signal = strategy.evaluate(
-                closes=candles["closes"],
-                highs=candles["highs"],
-                lows=candles["lows"],
-                volumes=candles["volumes"],
+                closes=candles_5m["closes"],
+                highs=candles_5m["highs"],
+                lows=candles_5m["lows"],
+                volumes=candles_5m["volumes"],
             )
             if not signal:
+                time.sleep(settings.loop_interval_sec)
+                continue
+
+            trend_3m = strategy.trend_direction(candles_3m["closes"])
+            trend_5m = strategy.trend_direction(candles_5m["closes"])
+            trend_15m = strategy.trend_direction(candles_15m["closes"])
+
+            if not (trend_3m == trend_5m == trend_15m == signal.side):
+                logger.info(
+                    "[SKIP] 멀티타임프레임 추세 불일치 signal=%s trend3=%s trend5=%s trend15=%s",
+                    signal.side,
+                    trend_3m,
+                    trend_5m,
+                    trend_15m,
+                )
+                stats.skipped_signals += 1
                 time.sleep(settings.loop_interval_sec)
                 continue
 
@@ -257,13 +271,17 @@ def main() -> None:
 
             notifier.send(
                 f"📌 진입 | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
-                f"price={price:.2f} | margin={margin_size:.2f} | lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
+                f"trend=3m/5m/15m 일치 | price={price:.2f} | margin={margin_size:.2f} | "
+                f"lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
             )
             logger.info(
-                "[OPEN] side=%s score=%s reasons=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
+                "[OPEN] side=%s score=%s reasons=%s trend3=%s trend5=%s trend15=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
                 signal.side,
                 signal.score,
                 ",".join(signal.reasons),
+                trend_3m,
+                trend_5m,
+                trend_15m,
                 price,
                 margin_size,
                 stop_loss,

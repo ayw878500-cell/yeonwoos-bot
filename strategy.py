@@ -41,6 +41,20 @@ class MultiIndicatorStrategy:
     def __init__(self, min_conditions: int = 2):
         self.min_conditions = min_conditions
 
+    def trend_direction(self, closes: list[float]) -> str | None:
+        if len(closes) < 220:
+            return None
+        ema9 = _ema(closes, 9)
+        ema21 = _ema(closes, 21)
+        ema200 = _ema(closes, 200)
+        ema200_smoothed = _ema(ema200, 3)
+
+        if closes[-1] > ema200_smoothed[-1] and ema9[-1] > ema21[-1]:
+            return "buy"
+        if closes[-1] < ema200_smoothed[-1] and ema9[-1] < ema21[-1]:
+            return "sell"
+        return None
+
     def evaluate(self, closes: list[float], highs: list[float], lows: list[float], volumes: list[float]) -> SignalResult | None:
         if len(closes) < 220:
             return None
@@ -48,7 +62,6 @@ class MultiIndicatorStrategy:
         reasons_buy: list[str] = []
         reasons_sell: list[str] = []
 
-        # 1) BB: length20, mult2.4
         bb_len = 20
         bb_mult = 2.4
         bb_basis = _sma(closes, bb_len)[-1]
@@ -61,7 +74,6 @@ class MultiIndicatorStrategy:
         if last_close >= bb_upper:
             reasons_sell.append("BB_UPPER_TOUCH")
 
-        # 2) EMA Cross: short 9 / long 21
         ema9 = _ema(closes, 9)
         ema21 = _ema(closes, 21)
         if ema9[-1] > ema21[-1] and ema9[-2] <= ema21[-2]:
@@ -69,7 +81,6 @@ class MultiIndicatorStrategy:
         if ema9[-1] < ema21[-1] and ema9[-2] >= ema21[-2]:
             reasons_sell.append("EMA9_21_DEAD")
 
-        # 3) EMA200 with EMA smoothing length 3
         ema200 = _ema(closes, 200)
         ema200_smoothed = _ema(ema200, 3)
         if last_close > ema200_smoothed[-1]:
@@ -77,7 +88,6 @@ class MultiIndicatorStrategy:
         else:
             reasons_sell.append("EMA200_TREND_DOWN")
 
-        # 4) VWAP source hlc3 session (approx by current candle set)
         hlc3 = [(h + l + c) / 3 for h, l, c in zip(highs, lows, closes)]
         cumulative_pv = 0.0
         cumulative_v = 0.0
@@ -90,7 +100,6 @@ class MultiIndicatorStrategy:
         else:
             reasons_sell.append("VWAP_BELOW")
 
-        # 5) RSI length7 + EMA smoothing 3
         rsi = self._rsi(closes, 7)
         rsi_smooth = _ema(rsi, 3)
         if rsi_smooth[-1] < 30:
@@ -98,7 +107,6 @@ class MultiIndicatorStrategy:
         if rsi_smooth[-1] > 70:
             reasons_sell.append("RSI_OVERBOUGHT")
 
-        # 6) Stoch 5,3,3
         k, d = self._stoch(highs, lows, closes, 5, 3, 3)
         if k[-1] > d[-1] and k[-2] <= d[-2] and k[-1] < 30:
             reasons_buy.append("STOCH_BULL_CROSS")
