@@ -131,6 +131,33 @@ cd <봇파일있는곳>
 ### (2) Register-ScheduledTask 액세스 거부(0x80070005)
 권한 문제입니다. 스크립트가 자동으로 Startup 방식으로 등록합니다.
 
+
+### (3) `-File ... 경로에 잘못된 문자가 있습니다` 오류
+이 오류는 보통 아래 이유로 발생합니다.
+- 복사 과정에서 따옴표가 일반 따옴표가 아니라 특수문자 따옴표(스마트 따옴표)로 바뀜
+- 현재 위치가 `봇파일있는곳`이 아님
+- 경로 앞뒤에 보이지 않는 공백이 들어감
+
+아래 명령을 **그대로** 입력하세요. (작은따옴표/큰따옴표 없이)
+
+```powershell
+cd C:\Users\user\Desktop\yeonwoos-bot
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\install_autostart.ps1
+```
+
+그래도 안 되면 전체 경로로 실행하세요.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\user\Desktop\yeonwoos-bot\windows\install_autostart.ps1
+```
+
+마지막 우회 방법(CMD):
+
+```cmd
+cd C:\Users\user\Desktop\yeonwoos-bot
+windows\install_autostart.cmd
+```
+
 ---
 
 ## 8) 내가 추천하는 프롬프트 추가 항목
