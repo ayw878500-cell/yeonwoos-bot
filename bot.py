@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from bitget_client import BitgetClient
+from bitget_client import BitgetClient, BitgetClientError
 from config import Settings, load_settings
 from risk import calc_position_size
 from strategy import MultiIndicatorStrategy
@@ -88,6 +88,32 @@ def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float
     )
 
 
+
+
+def wait_for_bitget_connection(
+    client: BitgetClient,
+    settings: Settings,
+    logger: logging.Logger,
+    notifier: TelegramNotifier,
+) -> None:
+    logger.info("[CHECK] 비트겟 API 연결 점검 시작")
+    delay = 2
+    while True:
+        try:
+            client.ping()
+            equity_check = client.validate_account_access(
+                settings.symbol,
+                settings.product_type,
+                settings.margin_coin,
+            )
+            logger.info("[CHECK] 비트겟 API 연결 확인 완료 | equity=%.4f", equity_check)
+            notifier.send(f"✅ 비트겟 연동 확인 완료 | equity={equity_check:.4f} {settings.margin_coin}")
+            return
+        except BitgetClientError as exc:
+            logger.warning("[CHECK_RETRY] 연결 점검 실패: %s | %ss 후 재시도", exc, delay)
+            time.sleep(delay)
+            delay = min(delay * 2, 30)
+
 def main() -> None:
     settings = load_settings()
     logger = setup_logger()
@@ -96,6 +122,8 @@ def main() -> None:
     client = BitgetClient(settings.base_url, settings.api_key, settings.api_secret, settings.api_passphrase)
     strategy = MultiIndicatorStrategy(min_conditions=settings.min_entry_conditions)
 
+    wait_for_bitget_connection(client, settings, logger, notifier)
+
     day = date.today()
     day_start_equity = 0.0
     stoploss_count = 0
@@ -103,6 +131,7 @@ def main() -> None:
     last_report_date: date | None = None
     position: Position | None = None
     stats = DailyStats()
+    error_backoff_sec = settings.loop_interval_sec
 
     logger.info("[START] DRY_RUN=%s symbol=%s", settings.dry_run, settings.symbol)
     notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
@@ -128,6 +157,7 @@ def main() -> None:
             if day_start_equity == 0.0:
                 day_start_equity = equity
             daily_return = (equity - day_start_equity) / day_start_equity if day_start_equity > 0 else 0.0
+            error_backoff_sec = settings.loop_interval_sec
 
             now_utc = datetime.now(UTC)
             if (
@@ -288,9 +318,18 @@ def main() -> None:
                 take_profit,
             )
 
+        except BitgetClientError as exc:
+            logger.exception("[API_ERROR] %s", exc)
+            notifier.send(f"⚠️ 비트겟 연동 오류: {exc}")
+            time.sleep(error_backoff_sec)
+            error_backoff_sec = min(error_backoff_sec * 2, 60)
+            continue
         except Exception as exc:
             logger.exception("[ERROR] %s", exc)
             notifier.send(f"⚠️ 에러 발생: {exc}")
+            time.sleep(error_backoff_sec)
+            error_backoff_sec = min(error_backoff_sec * 2, 60)
+            continue
 
         time.sleep(settings.loop_interval_sec)
 

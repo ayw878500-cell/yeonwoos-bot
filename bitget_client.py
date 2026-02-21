@@ -6,6 +6,12 @@ import time
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+class BitgetClientError(RuntimeError):
+    pass
 
 
 class BitgetClient:
@@ -14,6 +20,20 @@ class BitgetClient:
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_passphrase = api_passphrase
+
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            status=3,
+            backoff_factor=0.5,
+            allowed_methods=frozenset(["GET", "POST"]),
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        self.session = requests.Session()
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     def _sign(self, timestamp: str, method: str, path: str, body: str) -> str:
         prehash = f"{timestamp}{method.upper()}{path}{body}"
@@ -35,9 +55,27 @@ class BitgetClient:
         body = json.dumps(payload) if payload else ""
         headers = self._headers(method, path, body)
         url = f"{self.base_url}{path}"
-        response = requests.request(method, url, headers=headers, data=body, timeout=10)
-        response.raise_for_status()
-        return response.json()
+
+        try:
+            response = self.session.request(method, url, headers=headers, data=body, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+        except requests.RequestException as exc:
+            raise BitgetClientError(f"비트겟 요청 실패: {method} {path} | {exc}") from exc
+        except ValueError as exc:
+            raise BitgetClientError(f"비트겟 응답 JSON 파싱 실패: {method} {path}") from exc
+
+        code = str(data.get("code", ""))
+        if code and code != "00000":
+            msg = data.get("msg", "unknown error")
+            raise BitgetClientError(f"비트겟 API 오류: code={code}, msg={msg}, path={path}")
+        return data
+
+    def ping(self) -> None:
+        self._request("GET", "/api/v2/public/time")
+
+    def validate_account_access(self, symbol: str, product_type: str, margin_coin: str) -> float:
+        return self.account_equity(symbol, product_type, margin_coin)
 
     def ticker_price(self, symbol: str, product_type: str) -> float:
         path = f"/api/v2/mix/market/ticker?symbol={symbol}&productType={product_type}"
@@ -51,13 +89,11 @@ class BitgetClient:
         )
         data = self._request("GET", path)
         account = data.get("data") or {}
-        # Bitget 응답 버전별 키 명 차이를 대비한 fallbacks
         for key in ("available", "availableBalance", "usdtEquity", "equity"):
             value = account.get(key)
             if value is not None:
                 return float(value)
-        raise ValueError(f"계좌 잔고 키를 찾지 못했습니다: {account}")
-
+        raise BitgetClientError(f"계좌 잔고 키를 찾지 못했습니다: {account}")
 
     def candles(self, symbol: str, product_type: str, granularity: str, limit: int = 300) -> dict[str, list[float]]:
         path = (
@@ -80,8 +116,8 @@ class BitgetClient:
             closes.append(float(row[4]))
             volumes.append(float(row[5]))
 
-        if not closes:
-            raise ValueError("캔들 데이터를 불러오지 못했습니다.")
+        if len(closes) < 20:
+            raise BitgetClientError("캔들 데이터가 부족합니다. 심볼/상품유형/네트워크 상태를 확인하세요.")
 
         return {
             "closes": closes,
@@ -89,6 +125,7 @@ class BitgetClient:
             "lows": lows,
             "volumes": volumes,
         }
+
     def place_market_order(
         self,
         symbol: str,
