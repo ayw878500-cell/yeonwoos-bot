@@ -1,12 +1,14 @@
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 from bitget_client import BitgetClient
 from config import Settings, load_settings
 from risk import calc_position_size
-from strategy import EmaCrossStrategy
+from strategy import MultiIndicatorStrategy
 from telegram_notifier import TelegramNotifier
 
 
@@ -19,9 +21,36 @@ class Position:
     take_profit: float
 
 
+@dataclass
+class DailyStats:
+    entries: int = 0
+    closes: int = 0
+    win_count: int = 0
+    loss_count: int = 0
+    skipped_signals: int = 0
+
+
 def setup_logger() -> logging.Logger:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
-    return logging.getLogger("bitget-bot")
+    logger = logging.getLogger("bitget-bot")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+
+    Path("logs").mkdir(parents=True, exist_ok=True)
+    file_handler = TimedRotatingFileHandler(
+        filename="logs/bot.log",
+        when="midnight",
+        backupCount=14,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+    return logger
 
 
 def close_side(side: str) -> str:
@@ -34,28 +63,46 @@ def pnl_pct(side: str, entry: float, current: float) -> float:
     return (entry - current) / entry
 
 
+def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float, stoploss_count: int) -> str:
+    win_rate = (stats.win_count / stats.closes * 100) if stats.closes else 0.0
+    suggestions: list[str] = []
+
+    if win_rate < 45 and stats.closes >= 3:
+        suggestions.append("승률이 낮음: MIN_ENTRY_CONDITIONS를 3으로 올리거나 손절폭 축소 검토")
+    if stoploss_count >= settings.max_daily_stoploss:
+        suggestions.append("손절 제한 도달: 다음날 포지션 크기/신호 강도 보수화 권장")
+    if daily_return < 0:
+        suggestions.append("일일 손익 음수: CANDLE_GRANULARITY를 15m로 변경해 노이즈 감소 권장")
+    if not suggestions:
+        suggestions.append("현재 설정 유지 가능. 로그에서 진입 사유(reasons) 일관성 점검")
+
+    return (
+        f"📊 일일 리포트\n"
+        f"- Symbol: {settings.symbol}\n"
+        f"- 진입: {stats.entries}회 / 청산: {stats.closes}회\n"
+        f"- 승/패: {stats.win_count}/{stats.loss_count} (승률 {win_rate:.1f}%)\n"
+        f"- 손절횟수: {stoploss_count}/{settings.max_daily_stoploss}\n"
+        f"- 스킵신호: {stats.skipped_signals}회\n"
+        f"- 일일수익률: {daily_return*100:.2f}%\n"
+        f"- 보완사항: {' | '.join(suggestions)}"
+    )
+
+
 def main() -> None:
     settings = load_settings()
     logger = setup_logger()
-    notifier = TelegramNotifier(
-        settings.telegram_bot_token,
-        settings.telegram_chat_id,
-        settings.telegram_enabled,
-    )
+    notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id, settings.telegram_enabled)
 
-    client = BitgetClient(
-        settings.base_url,
-        settings.api_key,
-        settings.api_secret,
-        settings.api_passphrase,
-    )
-    strategy = EmaCrossStrategy(fast=settings.fast_ma, slow=settings.slow_ma)
+    client = BitgetClient(settings.base_url, settings.api_key, settings.api_secret, settings.api_passphrase)
+    strategy = MultiIndicatorStrategy(min_conditions=settings.min_entry_conditions)
 
     day = date.today()
     day_start_equity = 0.0
     stoploss_count = 0
     last_signal_ts = 0.0
+    last_report_date: date | None = None
     position: Position | None = None
+    stats = DailyStats()
 
     logger.info("[START] DRY_RUN=%s symbol=%s", settings.dry_run, settings.symbol)
     notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
@@ -67,16 +114,33 @@ def main() -> None:
                 day_start_equity = 0.0
                 stoploss_count = 0
                 position = None
+                stats = DailyStats()
+                last_report_date = None
                 logger.info("[DAILY_RESET] 일일 통계 초기화")
-                notifier.send("🗓️ 일자 변경: 일일 통계 초기화")
 
-            price = client.ticker_price(settings.symbol, settings.product_type)
+            candles = client.candles(
+                symbol=settings.symbol,
+                product_type=settings.product_type,
+                granularity=settings.candle_granularity,
+                limit=300,
+            )
+            price = candles["closes"][-1]
             equity = client.account_equity(settings.symbol, settings.product_type, settings.margin_coin)
 
             if day_start_equity == 0.0:
                 day_start_equity = equity
-
             daily_return = (equity - day_start_equity) / day_start_equity if day_start_equity > 0 else 0.0
+
+            now_utc = datetime.now(UTC)
+            if (
+                now_utc.hour == settings.report_hour_utc
+                and now_utc.minute == 0
+                and last_report_date != now_utc.date()
+            ):
+                report = daily_report_text(settings, stats, daily_return, stoploss_count)
+                logger.info("[DAILY_REPORT] %s", report.replace("\n", " | "))
+                notifier.send(report)
+                last_report_date = now_utc.date()
 
             if daily_return >= settings.daily_target_pct:
                 logger.info("[STOP_DAY] 일일 목표 달성: %.2f%%", daily_return * 100)
@@ -121,6 +185,10 @@ def main() -> None:
                         )
                     if reason == "SL":
                         stoploss_count += 1
+                        stats.loss_count += 1
+                    else:
+                        stats.win_count += 1
+                    stats.closes += 1
                     notifier.send(
                         f"📉 청산 {reason} | side={position.side} | entry={position.entry_price:.2f} | close={price:.2f} | pnl={trade_pnl*100:.2f}%"
                     )
@@ -130,12 +198,18 @@ def main() -> None:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            signal = strategy.update(price)
+            signal = strategy.evaluate(
+                closes=candles["closes"],
+                highs=candles["highs"],
+                lows=candles["lows"],
+                volumes=candles["volumes"],
+            )
             if not signal:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
             if (time.time() - last_signal_ts) < settings.signal_cooldown_sec:
+                stats.skipped_signals += 1
                 time.sleep(settings.loop_interval_sec)
                 continue
 
@@ -150,10 +224,11 @@ def main() -> None:
 
             if margin_size < settings.min_order_margin_usdt:
                 logger.info("[SKIP] 주문금액 부족: %.4f", margin_size)
+                stats.skipped_signals += 1
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            if signal == "buy":
+            if signal.side == "buy":
                 stop_loss = price * (1 - settings.stop_loss_pct)
                 take_profit = price * (1 + settings.take_profit_pct)
             else:
@@ -165,26 +240,30 @@ def main() -> None:
                     symbol=settings.symbol,
                     product_type=settings.product_type,
                     margin_coin=settings.margin_coin,
-                    side=signal,
+                    side=signal.side,
                     size_usdt=margin_size,
                     leverage=settings.leverage,
                 )
 
             position = Position(
-                side=signal,
+                side=signal.side,
                 entry_price=price,
                 margin_usdt=margin_size,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
             )
             last_signal_ts = time.time()
+            stats.entries += 1
 
             notifier.send(
-                f"📌 진입 | side={signal} | price={price:.2f} | margin={margin_size:.2f} | lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
+                f"📌 진입 | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
+                f"price={price:.2f} | margin={margin_size:.2f} | lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
             )
             logger.info(
-                "[OPEN] side=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
-                signal,
+                "[OPEN] side=%s score=%s reasons=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
+                signal.side,
+                signal.score,
+                ",".join(signal.reasons),
                 price,
                 margin_size,
                 stop_loss,

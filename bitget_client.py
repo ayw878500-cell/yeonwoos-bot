@@ -58,6 +58,37 @@ class BitgetClient:
                 return float(value)
         raise ValueError(f"계좌 잔고 키를 찾지 못했습니다: {account}")
 
+
+    def candles(self, symbol: str, product_type: str, granularity: str, limit: int = 300) -> dict[str, list[float]]:
+        path = (
+            "/api/v2/mix/market/candles"
+            f"?symbol={symbol}&productType={product_type}&granularity={granularity}&limit={limit}"
+        )
+        data = self._request("GET", path)
+        rows = data.get("data") or []
+
+        closes: list[float] = []
+        highs: list[float] = []
+        lows: list[float] = []
+        volumes: list[float] = []
+
+        for row in rows:
+            if not isinstance(row, list) or len(row) < 6:
+                continue
+            highs.append(float(row[2]))
+            lows.append(float(row[3]))
+            closes.append(float(row[4]))
+            volumes.append(float(row[5]))
+
+        if not closes:
+            raise ValueError("캔들 데이터를 불러오지 못했습니다.")
+
+        return {
+            "closes": closes,
+            "highs": highs,
+            "lows": lows,
+            "volumes": volumes,
+        }
     def place_market_order(
         self,
         symbol: str,

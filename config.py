@@ -31,6 +31,9 @@ class Settings:
     daily_target_pct: float
     min_order_margin_usdt: float
     signal_cooldown_sec: int
+    min_entry_conditions: int
+    candle_granularity: str
+    report_hour_utc: int
 
     dry_run: bool
     live_confirm: str
@@ -117,6 +120,9 @@ def load_settings() -> Settings:
         daily_target_pct=float(os.getenv("DAILY_TARGET_PCT", "0.1")),
         min_order_margin_usdt=float(os.getenv("MIN_ORDER_MARGIN_USDT", "5")),
         signal_cooldown_sec=int(os.getenv("SIGNAL_COOLDOWN_SEC", "120")),
+        min_entry_conditions=int(os.getenv("MIN_ENTRY_CONDITIONS", "2")),
+        candle_granularity=os.getenv("CANDLE_GRANULARITY", "5m").strip(),
+        report_hour_utc=int(os.getenv("REPORT_HOUR_UTC", "0")),
         dry_run=_to_bool(os.getenv("DRY_RUN", "false")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         armed_trading=_to_bool(os.getenv("ARMED_TRADING", "true")),
@@ -153,6 +159,12 @@ def _validate(s: Settings) -> None:
         raise ConfigError("MIN_ORDER_MARGIN_USDT는 양수여야 합니다.")
     if s.signal_cooldown_sec < 0:
         raise ConfigError("SIGNAL_COOLDOWN_SEC는 0 이상이어야 합니다.")
+    if s.min_entry_conditions < 2 or s.min_entry_conditions > 6:
+        raise ConfigError("MIN_ENTRY_CONDITIONS는 2~6 범위로 설정하세요.")
+    if s.report_hour_utc < 0 or s.report_hour_utc > 23:
+        raise ConfigError("REPORT_HOUR_UTC는 0~23 범위여야 합니다.")
+    if not s.candle_granularity:
+        raise ConfigError("CANDLE_GRANULARITY를 입력하세요.")
 
     if not s.dry_run:
         if s.live_confirm != LIVE_CONFIRM_TEXT:
