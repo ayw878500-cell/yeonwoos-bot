@@ -18,7 +18,10 @@ class Position:
     entry_price: float
     margin_usdt: float
     stop_loss: float
-    take_profit: float
+    take_profit: float | None
+    partial_take_done: bool = False
+    add_count: int = 0
+    last_feedback_ts: float = 0.0
 
 
 @dataclass
@@ -62,6 +65,23 @@ def pnl_pct(side: str, entry: float, current: float) -> float:
         return (current - entry) / entry
     return (entry - current) / entry
 
+
+
+
+def calc_levels(side: str, entry_price: float, stop_loss_pct: float, take_profit_pct: float) -> tuple[float, float]:
+    if side == "buy":
+        return entry_price * (1 - stop_loss_pct), entry_price * (1 + take_profit_pct)
+    return entry_price * (1 + stop_loss_pct), entry_price * (1 - take_profit_pct)
+
+
+def feedback_message(side: str, unrealized: float, trend_5m: str | None, trend_15m: str | None) -> str:
+    if trend_5m == trend_15m == side:
+        trend_comment = "추세는 유지 중"
+    elif trend_5m == trend_15m and trend_5m is not None:
+        trend_comment = "추세 반대 전환 가능성"
+    else:
+        trend_comment = "추세 혼조"
+    return f"📌 실시간 피드백 | side={side} | 미실현={unrealized*100:.2f}% | 5m={trend_5m} 15m={trend_15m} | {trend_comment}"
 
 def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float, stoploss_count: int) -> str:
     win_rate = (stats.win_count / stats.closes * 100) if stats.closes else 0.0
@@ -183,20 +203,107 @@ def main() -> None:
                 continue
 
             if position is not None:
+                unrealized = pnl_pct(position.side, position.entry_price, price)
+                trend_5m = strategy.trend_direction(candles_5m["closes"])
+                trend_15m = strategy.trend_direction(candles_15m["closes"])
+
+                if (
+                    unrealized <= -settings.loss_feedback_trigger_pct
+                    and (time.time() - position.last_feedback_ts) >= settings.feedback_interval_sec
+                ):
+                    msg = feedback_message(position.side, unrealized, trend_5m, trend_15m)
+                    logger.info("[FEEDBACK] %s", msg)
+                    notifier.send(msg)
+                    position.last_feedback_ts = time.time()
+
+                partial_rr_threshold = settings.stop_loss_pct * settings.partial_take_profit_rr
+                if (not position.partial_take_done) and unrealized >= partial_rr_threshold:
+                    partial_close_size = round(position.margin_usdt * 0.5, 4)
+                    if partial_close_size > 0:
+                        if not settings.dry_run:
+                            client.place_market_order(
+                                symbol=settings.symbol,
+                                product_type=settings.product_type,
+                                margin_coin=settings.margin_coin,
+                                side=close_side(position.side),
+                                size_usdt=partial_close_size,
+                                leverage=settings.leverage,
+                            )
+                        position.margin_usdt = max(position.margin_usdt - partial_close_size, 0.0)
+                        position.stop_loss = position.entry_price
+                        position.take_profit = None
+                        position.partial_take_done = True
+                        notifier.send(
+                            f"✅ 반익절 완료 | side={position.side} | close_size={partial_close_size:.2f} | 남은규모={position.margin_usdt:.2f} | 손절=본절"
+                        )
+                        logger.info(
+                            "[PARTIAL_TP] side=%s size=%.2f remain=%.2f breakeven=%.2f",
+                            position.side,
+                            partial_close_size,
+                            position.margin_usdt,
+                            position.stop_loss,
+                        )
+
+                if (
+                    position.add_count < settings.max_add_count
+                    and unrealized <= -settings.add_on_loss_trigger_pct
+                    and trend_5m == trend_15m == position.side
+                ):
+                    add_signal = strategy.evaluate(
+                        closes=candles_5m["closes"],
+                        highs=candles_5m["highs"],
+                        lows=candles_5m["lows"],
+                        volumes=candles_5m["volumes"],
+                    )
+                    if add_signal and add_signal.side == position.side and add_signal.score >= (settings.min_entry_conditions + 1):
+                        add_margin = round(position.margin_usdt * settings.add_on_loss_fraction, 4)
+                        if add_margin >= settings.min_order_margin_usdt:
+                            if not settings.dry_run:
+                                client.place_market_order(
+                                    symbol=settings.symbol,
+                                    product_type=settings.product_type,
+                                    margin_coin=settings.margin_coin,
+                                    side=position.side,
+                                    size_usdt=add_margin,
+                                    leverage=settings.leverage,
+                                )
+                            total_margin = position.margin_usdt + add_margin
+                            position.entry_price = (
+                                (position.entry_price * position.margin_usdt) + (price * add_margin)
+                            ) / total_margin
+                            position.margin_usdt = total_margin
+                            position.stop_loss, position.take_profit = calc_levels(
+                                position.side,
+                                position.entry_price,
+                                settings.stop_loss_pct,
+                                settings.take_profit_pct,
+                            )
+                            position.add_count += 1
+                            notifier.send(
+                                f"➕ 추가진입 | side={position.side} | add={add_margin:.2f} | avg_entry={position.entry_price:.2f} | add_count={position.add_count}"
+                            )
+                            logger.info(
+                                "[ADD_ON_LOSS] side=%s add=%.2f avg=%.2f count=%s",
+                                position.side,
+                                add_margin,
+                                position.entry_price,
+                                position.add_count,
+                            )
+
                 should_close = False
                 reason = ""
                 if position.side == "buy":
                     if price <= position.stop_loss:
                         should_close = True
                         reason = "SL"
-                    elif price >= position.take_profit:
+                    elif position.take_profit is not None and price >= position.take_profit:
                         should_close = True
                         reason = "TP"
                 else:
                     if price >= position.stop_loss:
                         should_close = True
                         reason = "SL"
-                    elif price <= position.take_profit:
+                    elif position.take_profit is not None and price <= position.take_profit:
                         should_close = True
                         reason = "TP"
 
@@ -272,12 +379,12 @@ def main() -> None:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            if signal.side == "buy":
-                stop_loss = price * (1 - settings.stop_loss_pct)
-                take_profit = price * (1 + settings.take_profit_pct)
-            else:
-                stop_loss = price * (1 + settings.stop_loss_pct)
-                take_profit = price * (1 - settings.take_profit_pct)
+            stop_loss, take_profit = calc_levels(
+                signal.side,
+                price,
+                settings.stop_loss_pct,
+                settings.take_profit_pct,
+            )
 
             if not settings.dry_run:
                 client.place_market_order(

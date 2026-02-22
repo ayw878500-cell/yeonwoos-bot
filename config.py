@@ -34,6 +34,12 @@ class Settings:
     min_entry_conditions: int
     candle_granularity: str
     report_hour_utc: int
+    partial_take_profit_rr: float
+    add_on_loss_trigger_pct: float
+    add_on_loss_fraction: float
+    max_add_count: int
+    loss_feedback_trigger_pct: float
+    feedback_interval_sec: int
 
     dry_run: bool
     live_confirm: str
@@ -123,6 +129,12 @@ def load_settings() -> Settings:
         min_entry_conditions=int(os.getenv("MIN_ENTRY_CONDITIONS", "2")),
         candle_granularity=os.getenv("CANDLE_GRANULARITY", "5m").strip(),
         report_hour_utc=int(os.getenv("REPORT_HOUR_UTC", "0")),
+        partial_take_profit_rr=float(os.getenv("PARTIAL_TAKE_PROFIT_RR", "2.0")),
+        add_on_loss_trigger_pct=float(os.getenv("ADD_ON_LOSS_TRIGGER_PCT", "0.006")),
+        add_on_loss_fraction=float(os.getenv("ADD_ON_LOSS_FRACTION", "0.25")),
+        max_add_count=int(os.getenv("MAX_ADD_COUNT", "1")),
+        loss_feedback_trigger_pct=float(os.getenv("LOSS_FEEDBACK_TRIGGER_PCT", "0.004")),
+        feedback_interval_sec=int(os.getenv("FEEDBACK_INTERVAL_SEC", "300")),
         dry_run=_to_bool(os.getenv("DRY_RUN", "false")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         armed_trading=_to_bool(os.getenv("ARMED_TRADING", "true")),
@@ -163,6 +175,18 @@ def _validate(s: Settings) -> None:
         raise ConfigError("MIN_ENTRY_CONDITIONS는 2~6 범위로 설정하세요.")
     if s.report_hour_utc < 0 or s.report_hour_utc > 23:
         raise ConfigError("REPORT_HOUR_UTC는 0~23 범위여야 합니다.")
+    if s.partial_take_profit_rr < 1.0 or s.partial_take_profit_rr > 5.0:
+        raise ConfigError("PARTIAL_TAKE_PROFIT_RR는 1.0~5.0 범위로 설정하세요.")
+    if s.add_on_loss_trigger_pct <= 0 or s.add_on_loss_trigger_pct > 0.05:
+        raise ConfigError("ADD_ON_LOSS_TRIGGER_PCT는 0 초과 0.05 이하로 설정하세요.")
+    if s.add_on_loss_fraction <= 0 or s.add_on_loss_fraction > 1:
+        raise ConfigError("ADD_ON_LOSS_FRACTION은 0 초과 1 이하로 설정하세요.")
+    if s.max_add_count < 0 or s.max_add_count > 3:
+        raise ConfigError("MAX_ADD_COUNT는 0~3 범위로 설정하세요.")
+    if s.loss_feedback_trigger_pct <= 0 or s.loss_feedback_trigger_pct > 0.05:
+        raise ConfigError("LOSS_FEEDBACK_TRIGGER_PCT는 0 초과 0.05 이하로 설정하세요.")
+    if s.feedback_interval_sec < 10:
+        raise ConfigError("FEEDBACK_INTERVAL_SEC는 10초 이상으로 설정하세요.")
     if not s.candle_granularity:
         raise ConfigError("CANDLE_GRANULARITY를 입력하세요.")
 
