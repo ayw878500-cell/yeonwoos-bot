@@ -28,9 +28,10 @@ windows\start_now.cmd
 ### 윈도우 PowerShell (수동 실행)
 ```powershell
 cd <봇파일있는곳>
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 copy .env.example .env
 notepad .env
 python bot.py
@@ -40,6 +41,18 @@ python bot.py
 - 멀티 심볼 자동 진입은 `.env`에 `AUTO_SCAN_ALL_SYMBOLS=true`를 두면 됩니다.
 
 ---
+
+### PowerShell에서 `activate`/`pip` 오류가 날 때
+```powershell
+cd <봇파일있는곳>
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python bot.py
+```
+- `activate`는 `Activate.ps1`로 실행해야 합니다.
+- `pip`가 안 잡히면 `python -m pip ...` 형태로 실행하세요.
 
 ## 1) 먼저 준비할 것
 
