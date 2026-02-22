@@ -60,7 +60,7 @@ def close_side(side: str) -> str:
     return "sell" if side == "buy" else "buy"
 
 
-def pnl_pct(side: str, entry: float, current: float) -> float:
+def pnl_pct(side: str, entry: float, current: float) -> float | None:
     if side == "buy":
         return (current - entry) / entry
     return (entry - current) / entry
@@ -125,22 +125,31 @@ def place_order_with_balance_fallback(
             available = client.account_available(symbol, product_type, margin_coin)
             reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
             if reduced_size < settings.min_order_margin_usdt:
-                raise
+                logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 최소주문금액 미만으로 주문 스킵")
+                notifier.send("⚠️ 잔고 부족으로 주문 스킵(최소주문금액 미만)")
+                return None
             logger.warning("[ORDER_RETRY] 잔고초과(code=40762)로 주문 축소 재시도: %.4f -> %.4f", effective_size, reduced_size)
             notifier.send(
                 f"⚠️ 주문금액 축소 재시도: {effective_size:.4f} -> {reduced_size:.4f} (잔고초과 code=40762)"
             )
-            client.place_market_order(
-                symbol=symbol,
-                product_type=product_type,
-                margin_coin=margin_coin,
-                side=side,
-                size_usdt=reduced_size,
-                leverage=leverage,
-                position_mode=settings.position_mode,
-                is_close=is_close,
-            )
-            return reduced_size
+            try:
+                client.place_market_order(
+                    symbol=symbol,
+                    product_type=product_type,
+                    margin_coin=margin_coin,
+                    side=side,
+                    size_usdt=reduced_size,
+                    leverage=leverage,
+                    position_mode=settings.position_mode,
+                    is_close=is_close,
+                )
+                return reduced_size
+            except BitgetClientError as retry_exc:
+                if "code=40762" in str(retry_exc):
+                    logger.info("[ORDER_SKIP] 축소 재시도 후에도 잔고초과(code=40762)로 주문 스킵")
+                    notifier.send("⚠️ 잔고 부족으로 주문 스킵(축소 재시도 실패)")
+                    return None
+                raise
         raise
 
 def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float, stoploss_count: int) -> str:
@@ -322,7 +331,7 @@ def main() -> None:
                         if add_margin >= settings.min_order_margin_usdt:
                             executed_add_margin = add_margin
                             if not settings.dry_run:
-                                executed_add_margin = place_order_with_balance_fallback(
+                                result_size = place_order_with_balance_fallback(
                                     client=client,
                                     settings=settings,
                                     logger=logger,
@@ -335,6 +344,10 @@ def main() -> None:
                                     leverage=settings.leverage,
                                     is_close=False,
                                 )
+                                if result_size is None:
+                                    time.sleep(settings.loop_interval_sec)
+                                    continue
+                                executed_add_margin = result_size
                             total_margin = position.margin_usdt + executed_add_margin
                             position.entry_price = (
                                 (position.entry_price * position.margin_usdt) + (price * executed_add_margin)
@@ -458,7 +471,7 @@ def main() -> None:
 
             executed_margin_size = margin_size
             if not settings.dry_run:
-                executed_margin_size = place_order_with_balance_fallback(
+                result_size = place_order_with_balance_fallback(
                     client=client,
                     settings=settings,
                     logger=logger,
@@ -471,6 +484,11 @@ def main() -> None:
                     leverage=settings.leverage,
                     is_close=False,
                 )
+                if result_size is None:
+                    stats.skipped_signals += 1
+                    time.sleep(settings.loop_interval_sec)
+                    continue
+                executed_margin_size = result_size
 
             position = Position(
                 side=signal.side,
@@ -484,7 +502,7 @@ def main() -> None:
 
             notifier.send(
                 f"📌 진입 | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
-                f"trend=5m/15m 일치(3m 참고) | price={price:.2f} | margin={margin_size:.2f} | "
+                f"trend=5m/15m 일치(3m 참고) | price={price:.2f} | margin={executed_margin_size:.2f} | "
                 f"lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
             )
             logger.info(
@@ -496,7 +514,7 @@ def main() -> None:
                 trend_5m,
                 trend_15m,
                 price,
-                margin_size,
+                executed_margin_size,
                 stop_loss,
                 take_profit,
             )
