@@ -47,6 +47,7 @@ class Settings:
     order_size_buffer: float
     use_available_balance_sizing: bool
     full_balance_entry: bool
+    balance_entry_safety_buffer: float
 
     dry_run: bool
     live_confirm: str
@@ -149,6 +150,7 @@ def load_settings() -> Settings:
         order_size_buffer=float(os.getenv("ORDER_SIZE_BUFFER", "0.9")),
         use_available_balance_sizing=_to_bool(os.getenv("USE_AVAILABLE_BALANCE_SIZING", "true")),
         full_balance_entry=_to_bool(os.getenv("FULL_BALANCE_ENTRY", "true")),
+        balance_entry_safety_buffer=float(os.getenv("BALANCE_ENTRY_SAFETY_BUFFER", "0.995")),
         dry_run=_to_bool(os.getenv("DRY_RUN", "false")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         armed_trading=_to_bool(os.getenv("ARMED_TRADING", "true")),
@@ -207,6 +209,8 @@ def _validate(s: Settings) -> None:
         raise ConfigError("FEEDBACK_INTERVAL_SEC는 10초 이상으로 설정하세요.")
     if s.order_size_buffer <= 0 or s.order_size_buffer > 1:
         raise ConfigError("ORDER_SIZE_BUFFER는 0 초과 1 이하로 설정하세요.")
+    if s.balance_entry_safety_buffer <= 0 or s.balance_entry_safety_buffer > 1:
+        raise ConfigError("BALANCE_ENTRY_SAFETY_BUFFER는 0 초과 1 이하로 설정하세요.")
     if not s.candle_granularity:
         raise ConfigError("CANDLE_GRANULARITY를 입력하세요.")
 

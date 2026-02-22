@@ -113,7 +113,7 @@ def place_order_with_balance_fallback(
     if not is_close:
         available = client.account_available(symbol, product_type, margin_coin)
         if settings.full_balance_entry:
-            cap_size = round(max(available, 0.0), 4)
+            cap_size = round(max(available * settings.balance_entry_safety_buffer, 0.0), 4)
         else:
             cap_size = round(max(available * settings.order_size_buffer, 0.0), 4)
         if cap_size <= 0:
@@ -136,11 +136,12 @@ def place_order_with_balance_fallback(
         return effective_size
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
-            available = client.account_available(symbol, product_type, margin_coin)
             if settings.full_balance_entry:
-                reduced_size = round(max(available * 0.98, 0.0), 4)
-            else:
-                reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
+                logger.warning("[ORDER_40762] 풀밸런스 모드에서 가용잔고 안전버퍼를 더 줄이세요. BALANCE_ENTRY_SAFETY_BUFFER=%.4f", settings.balance_entry_safety_buffer)
+                notifier.send("⚠️ 잔고초과(code=40762): BALANCE_ENTRY_SAFETY_BUFFER 값을 더 낮춰주세요.")
+                return None
+            available = client.account_available(symbol, product_type, margin_coin)
+            reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
             if reduced_size < settings.min_order_margin_usdt:
                 logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 최소주문금액 미만으로 주문 스킵")
                 notifier.send("⚠️ 잔고 부족으로 주문 스킵(최소주문금액 미만)")
@@ -304,7 +305,7 @@ def main() -> None:
     notifier.send(f"🚀 봇 시작: DRY_RUN={settings.dry_run}")
 
     trade_symbols = configured_symbols(settings, client, logger)
-    logger.info("[SYMBOLS] 매매 대상 심볼 수: %s", len(trade_symbols))
+    logger.info("[SYMBOLS] 매매 대상 심볼 수: %s | 예시=%s", len(trade_symbols), ",".join(trade_symbols[:10]))
 
     while True:
         try:
@@ -317,11 +318,6 @@ def main() -> None:
                 last_report_date = None
                 logger.info("[DAILY_RESET] 일일 통계 초기화")
 
-            candles_3m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "3m", limit=300)
-            candles_5m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "5m", limit=300)
-            candles_15m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "15m", limit=300)
-
-            price = candles_5m["closes"][-1]
             equity = client.account_equity(settings.symbol, settings.product_type, settings.margin_coin)
 
             if day_start_equity == 0.0:
@@ -353,6 +349,11 @@ def main() -> None:
                 continue
 
             if position is not None:
+                candles_3m = client.candles(position.symbol, settings.product_type, "3m", limit=300)
+                candles_5m = client.candles(position.symbol, settings.product_type, "5m", limit=300)
+                candles_15m = client.candles(position.symbol, settings.product_type, "15m", limit=300)
+                price = candles_5m["closes"][-1]
+
                 unrealized = pnl_pct(position.side, position.entry_price, price)
                 trend_5m = strategy.trend_direction(candles_5m["closes"])
                 trend_15m = strategy.trend_direction(candles_15m["closes"])
@@ -522,7 +523,7 @@ def main() -> None:
             if settings.use_available_balance_sizing:
                 available_margin = client.account_available(candidate.symbol, settings.product_type, settings.margin_coin)
                 if settings.full_balance_entry:
-                    margin_size = round(max(available_margin, 0.0), 4)
+                    margin_size = round(max(available_margin * settings.balance_entry_safety_buffer, 0.0), 4)
                 else:
                     margin_size = round(max(available_margin * settings.entry_fraction, 0.0), 4)
             else:

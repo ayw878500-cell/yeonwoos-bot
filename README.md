@@ -93,6 +93,7 @@ LEVERAGE=10
 ENTRY_FRACTION=1.0
 USE_AVAILABLE_BALANCE_SIZING=true
 FULL_BALANCE_ENTRY=true
+BALANCE_ENTRY_SAFETY_BUFFER=0.995
 MAX_DAILY_STOPLOSS=3
 DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
@@ -150,8 +151,8 @@ FEEDBACK_INTERVAL_SEC=300
    - BB(20, 2.4), EMA Cross(9/21), EMA200(EMA3 스무딩), VWAP(hlc3), RSI(7/EMA3), Stoch(5,3,3)
 2. 5m 기준으로 매수/매도 조건 중 **2개 이상** 같은 방향이면 진입 후보가 됩니다.
 3. 5m/15m 추세가 같은 방향인지 확인하고, 같을 때만 진입합니다. (3m은 참고용 로그)
-4. 기본 모드(`FULL_BALANCE_ENTRY=true`)에서는 신호 발생 시 실시간 가용잔고 전체로 진입합니다.
-   (거래소 수수료/체결오차로 40762가 나면 1회만 98%로 축소 재시도)
+4. 기본 모드(`FULL_BALANCE_ENTRY=true`)에서는 신호 발생 시 실시간 가용잔고 × `BALANCE_ENTRY_SAFETY_BUFFER`로 바로 진입합니다.
+   (기본 0.995라서 사실상 전액 진입 + 최소 여유만 남깁니다)
 5. `FULL_BALANCE_ENTRY=false`일 때는 실시간 가용잔고(`available`) × `ENTRY_FRACTION` 방식으로 진입합니다.
 6. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
 7. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
@@ -286,11 +287,10 @@ windows\install_autostart.cmd
 3) 포지션 모드(원웨이/헤지)와 `POSITION_MODE` 값 일치 여부
 4) 주문 size 단위(USDT/계약수) 규칙 확인
 5) 주문 직전에 실시간 가용잔고를 다시 조회해 주문금액을 자동 상한 처리합니다.
-6) `code=40762`(잔고 초과)이면 1회 자동 축소 재시도합니다.
-   - `FULL_BALANCE_ENTRY=true` 모드: 가용잔고의 98%로 재시도
-   - 그 외 모드: `ORDER_SIZE_BUFFER` 비율로 재시도
-7) 재시도 후에도 잔고가 부족하면 해당 신호는 주문 스킵 처리하고 다음 루프로 넘어갑니다.
-8) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
+6) `FULL_BALANCE_ENTRY=true`에서는 재시도 없이 가용잔고×버퍼로 1회 주문합니다. (`BALANCE_ENTRY_SAFETY_BUFFER`)
+7) 이 모드에서 `code=40762`가 나면 버퍼를 더 낮추라는 안내를 보내고 해당 신호를 스킵합니다.
+8) `FULL_BALANCE_ENTRY=false` 모드에서만 `ORDER_SIZE_BUFFER` 기반 1회 축소 재시도를 사용합니다.
+9) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
 
 
 ### (6) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
