@@ -137,8 +137,46 @@ def place_order_with_balance_fallback(
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
             if settings.full_balance_entry:
-                logger.warning("[ORDER_40762] 풀밸런스 모드에서 가용잔고 안전버퍼를 더 줄이세요. BALANCE_ENTRY_SAFETY_BUFFER=%.4f", settings.balance_entry_safety_buffer)
-                notifier.send("⚠️ 잔고초과(code=40762): BALANCE_ENTRY_SAFETY_BUFFER 값을 더 낮춰주세요.")
+                retry_count = settings.dynamic_buffer_retry_count
+                for attempt in range(1, retry_count + 1):
+                    dynamic_buffer = max(
+                        settings.balance_entry_safety_buffer - (settings.dynamic_buffer_step * attempt),
+                        settings.dynamic_buffer_min,
+                    )
+                    available = client.account_available(symbol, product_type, margin_coin)
+                    reduced_size = round(max(available * dynamic_buffer, 0.0), 4)
+                    if reduced_size < settings.min_order_margin_usdt:
+                        logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 동적 축소 후 최소주문금액 미만")
+                        notifier.send("⚠️ 잔고 부족으로 주문 스킵(동적 축소 후 최소주문금액 미만)")
+                        return None
+                    logger.warning(
+                        "[ORDER_RETRY_DYNAMIC] code=40762 동적 축소 재시도(%s/%s): buffer=%.4f size=%.4f",
+                        attempt,
+                        retry_count,
+                        dynamic_buffer,
+                        reduced_size,
+                    )
+                    try:
+                        client.place_market_order(
+                            symbol=symbol,
+                            product_type=product_type,
+                            margin_coin=margin_coin,
+                            side=side,
+                            size_usdt=reduced_size,
+                            leverage=leverage,
+                            position_mode=settings.position_mode,
+                            is_close=is_close,
+                        )
+                        notifier.send(
+                            f"ℹ️ 잔고초과 보정 성공: 동적 버퍼 {dynamic_buffer:.4f}로 주문 체결"
+                        )
+                        return reduced_size
+                    except BitgetClientError as retry_exc:
+                        if "code=40762" in str(retry_exc):
+                            continue
+                        raise
+                logger.info("[ORDER_SKIP] 동적 축소 재시도 후에도 잔고초과(code=40762)로 주문 스킵")
+                notifier.send("⚠️ 잔고 부족으로 주문 스킵(동적 축소 재시도 실패)")
                 return None
             available = client.account_available(symbol, product_type, margin_coin)
             reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
