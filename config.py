@@ -115,7 +115,7 @@ def load_settings() -> Settings:
         product_type=os.getenv("BITGET_PRODUCT_TYPE", "USDT-FUTURES").strip(),
         margin_coin=os.getenv("BITGET_MARGIN_COIN", "USDT").strip(),
         leverage=int(os.getenv("LEVERAGE", "10")),
-        entry_fraction=float(os.getenv("ENTRY_FRACTION", "0.3")),
+        entry_fraction=float(os.getenv("ENTRY_FRACTION", "1.0")),
         risk_per_trade=float(os.getenv("RISK_PER_TRADE", "0.01")),
         stop_loss_pct=float(os.getenv("STOP_LOSS_PCT", "0.01")),
         risk_reward_ratio=float(os.getenv("RISK_REWARD_RATIO", "2.0")),

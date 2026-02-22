@@ -2,7 +2,7 @@
 
 요청 반영:
 - 레버리지 10배
-- 진입 시드 30%
+- 진입 시드 100%
 - 하루 목표 수익 10%
 - 하루 손절 3회면 당일 거래 중지
 - 텔레그램 알림
@@ -75,7 +75,7 @@ TELEGRAM_CHAT_ID=내채팅아이디
 
 ```env
 LEVERAGE=10
-ENTRY_FRACTION=0.3
+ENTRY_FRACTION=1.0
 MAX_DAILY_STOPLOSS=3
 DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
