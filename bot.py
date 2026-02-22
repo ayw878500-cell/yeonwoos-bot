@@ -98,26 +98,37 @@ def place_order_with_balance_fallback(
     leverage: int,
     is_close: bool,
 ) -> float:
+    effective_size = size_usdt
+    if not is_close:
+        available = client.account_available(symbol, product_type, margin_coin)
+        cap_size = round(max(available * settings.order_size_buffer, 0.0), 4)
+        if cap_size <= 0:
+            raise BitgetClientError("가용 잔고가 0이라 주문할 수 없습니다.")
+        if effective_size > cap_size:
+            logger.warning("[ORDER_CAP] 실시간 가용잔고 기준 주문 축소: %.4f -> %.4f", effective_size, cap_size)
+            effective_size = cap_size
+
     try:
         client.place_market_order(
             symbol=symbol,
             product_type=product_type,
             margin_coin=margin_coin,
             side=side,
-            size_usdt=size_usdt,
+            size_usdt=effective_size,
             leverage=leverage,
             position_mode=settings.position_mode,
             is_close=is_close,
         )
-        return size_usdt
+        return effective_size
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
-            reduced_size = round(size_usdt * settings.order_size_buffer, 4)
+            available = client.account_available(symbol, product_type, margin_coin)
+            reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
             if reduced_size < settings.min_order_margin_usdt:
                 raise
-            logger.warning("[ORDER_RETRY] 잔고초과(code=40762)로 주문 축소 재시도: %.4f -> %.4f", size_usdt, reduced_size)
+            logger.warning("[ORDER_RETRY] 잔고초과(code=40762)로 주문 축소 재시도: %.4f -> %.4f", effective_size, reduced_size)
             notifier.send(
-                f"⚠️ 주문금액 축소 재시도: {size_usdt:.4f} -> {reduced_size:.4f} (잔고초과 code=40762)"
+                f"⚠️ 주문금액 축소 재시도: {effective_size:.4f} -> {reduced_size:.4f} (잔고초과 code=40762)"
             )
             client.place_market_order(
                 symbol=symbol,

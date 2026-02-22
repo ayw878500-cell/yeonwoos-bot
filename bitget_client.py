@@ -121,6 +121,23 @@ class BitgetClient:
                 return float(value)
         raise BitgetClientError(f"계좌 잔고 키를 찾지 못했습니다: {account}")
 
+    def account_available(self, symbol: str, product_type: str, margin_coin: str) -> float:
+        path = (
+            "/api/v2/mix/account/account"
+            f"?symbol={symbol}&productType={product_type}&marginCoin={margin_coin}"
+        )
+        data = self._request("GET", path)
+        account = data.get("data") or {}
+        for key in ("available", "availableBalance", "maxOpenPosAvailable"):
+            value = account.get(key)
+            if value is not None:
+                return float(value)
+        for key in ("usdtEquity", "equity"):
+            value = account.get(key)
+            if value is not None:
+                return float(value)
+        raise BitgetClientError(f"가용 잔고 키를 찾지 못했습니다: {account}")
+
     def candles(self, symbol: str, product_type: str, granularity: str, limit: int = 300) -> dict[str, list[float]]:
         path = (
             "/api/v2/mix/market/candles"
