@@ -34,6 +34,7 @@ class Settings:
     min_entry_conditions: int
     candle_granularity: str
     report_hour_utc: int
+    position_mode: str
     partial_take_profit_rr: float
     add_on_loss_trigger_pct: float
     add_on_loss_fraction: float
@@ -129,6 +130,7 @@ def load_settings() -> Settings:
         min_entry_conditions=int(os.getenv("MIN_ENTRY_CONDITIONS", "2")),
         candle_granularity=os.getenv("CANDLE_GRANULARITY", "5m").strip(),
         report_hour_utc=int(os.getenv("REPORT_HOUR_UTC", "0")),
+        position_mode=os.getenv("POSITION_MODE", "hedge").strip().lower(),
         partial_take_profit_rr=float(os.getenv("PARTIAL_TAKE_PROFIT_RR", "2.0")),
         add_on_loss_trigger_pct=float(os.getenv("ADD_ON_LOSS_TRIGGER_PCT", "0.006")),
         add_on_loss_fraction=float(os.getenv("ADD_ON_LOSS_FRACTION", "0.25")),
@@ -175,6 +177,8 @@ def _validate(s: Settings) -> None:
         raise ConfigError("MIN_ENTRY_CONDITIONS는 2~6 범위로 설정하세요.")
     if s.report_hour_utc < 0 or s.report_hour_utc > 23:
         raise ConfigError("REPORT_HOUR_UTC는 0~23 범위여야 합니다.")
+    if s.position_mode not in {"hedge", "oneway"}:
+        raise ConfigError("POSITION_MODE는 hedge 또는 oneway로 설정하세요.")
     if s.partial_take_profit_rr < 1.0 or s.partial_take_profit_rr > 5.0:
         raise ConfigError("PARTIAL_TAKE_PROFIT_RR는 1.0~5.0 범위로 설정하세요.")
     if s.add_on_loss_trigger_pct <= 0 or s.add_on_loss_trigger_pct > 0.05:

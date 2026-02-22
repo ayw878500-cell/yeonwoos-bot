@@ -153,7 +153,7 @@ def main() -> None:
     stats = DailyStats()
     error_backoff_sec = settings.loop_interval_sec
 
-    logger.info("[START] DRY_RUN=%s symbol=%s", settings.dry_run, settings.symbol)
+    logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s", settings.dry_run, settings.symbol, settings.position_mode)
     notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
 
     while True:
@@ -228,6 +228,8 @@ def main() -> None:
                                 side=close_side(position.side),
                                 size_usdt=partial_close_size,
                                 leverage=settings.leverage,
+                                position_mode=settings.position_mode,
+                                is_close=True,
                             )
                         position.margin_usdt = max(position.margin_usdt - partial_close_size, 0.0)
                         position.stop_loss = position.entry_price
@@ -266,6 +268,8 @@ def main() -> None:
                                     side=position.side,
                                     size_usdt=add_margin,
                                     leverage=settings.leverage,
+                                    position_mode=settings.position_mode,
+                                    is_close=False,
                                 )
                             total_margin = position.margin_usdt + add_margin
                             position.entry_price = (
@@ -317,6 +321,8 @@ def main() -> None:
                             side=close_side(position.side),
                             size_usdt=position.margin_usdt,
                             leverage=settings.leverage,
+                            position_mode=settings.position_mode,
+                            is_close=True,
                         )
                     if reason == "SL":
                         stoploss_count += 1
@@ -394,6 +400,8 @@ def main() -> None:
                     side=signal.side,
                     size_usdt=margin_size,
                     leverage=settings.leverage,
+                    position_mode=settings.position_mode,
+                    is_close=False,
                 )
 
             position = Position(

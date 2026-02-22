@@ -160,6 +160,8 @@ class BitgetClient:
         side: str,
         size_usdt: float,
         leverage: int,
+        position_mode: str = "hedge",
+        is_close: bool = False,
     ) -> dict[str, Any]:
         path = "/api/v2/mix/order/place-order"
         payload = {
@@ -172,4 +174,6 @@ class BitgetClient:
             "size": str(size_usdt),
             "lever": str(leverage),
         }
+        if position_mode == "hedge":
+            payload["tradeSide"] = "close" if is_close else "open"
         return self._request("POST", path, payload)

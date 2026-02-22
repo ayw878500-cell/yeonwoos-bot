@@ -51,7 +51,8 @@ windows\install_autostart.cmd
 3. **IP 화이트리스트 사용 시**: 현재 PC 공인 IP를 비트겟에 등록합니다.
 4. **시스템 시간 자동 동기화**: Windows 시간 자동 설정 ON (서명 오류 예방).
 5. **심볼/상품타입 확인**: `BITGET_SYMBOL`, `BITGET_PRODUCT_TYPE` 값 일치 확인.
-6. **최초 실행은 DRY_RUN 권장**: 연동 점검 후 실전 전환.
+6. **포지션 모드 일치**: `POSITION_MODE=hedge`(양방향) 또는 `oneway`(단방향)을 계정과 맞춤.
+7. **최초 실행은 DRY_RUN 권장**: 연동 점검 후 실전 전환.
 
 봇은 시작 시 자동으로 비트겟 연결 점검(ping + 계좌조회)을 수행하고,
 실패하면 자동 재시도(backoff)합니다.
@@ -66,6 +67,7 @@ windows\install_autostart.cmd
 BITGET_API_KEY=내키
 BITGET_API_SECRET=내시크릿
 BITGET_API_PASSPHRASE=내패스프레이즈
+POSITION_MODE=hedge
 
 TELEGRAM_BOT_TOKEN=내텔레그램봇토큰
 TELEGRAM_CHAT_ID=내채팅아이디
@@ -83,6 +85,7 @@ RISK_REWARD_RATIO=2.0
 MIN_ENTRY_CONDITIONS=2
 REPORT_HOUR_UTC=0
 DRY_RUN=false
+POSITION_MODE=hedge
 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
 ARMED_TRADING=true
 ```
@@ -246,7 +249,7 @@ windows\install_autostart.cmd
 이 오류가 나오면 아래 순서로 점검하세요.
 1) `.env`의 `BITGET_SYMBOL`, `BITGET_PRODUCT_TYPE`, `BITGET_MARGIN_COIN` 값이 거래창과 같은지
 2) API 권한(선물 거래/조회) + IP 화이트리스트 설정
-3) 포지션 모드(원웨이/헤지)와 주문 파라미터 호환 여부
+3) 포지션 모드(원웨이/헤지)와 `POSITION_MODE` 값 일치 여부
 4) 주문 size 단위(USDT/계약수) 규칙 확인
 
 
