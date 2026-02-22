@@ -42,6 +42,7 @@ class Settings:
     loss_feedback_trigger_pct: float
     feedback_interval_sec: int
     order_size_buffer: float
+    use_available_balance_sizing: bool
 
     dry_run: bool
     live_confirm: str
@@ -139,6 +140,7 @@ def load_settings() -> Settings:
         loss_feedback_trigger_pct=float(os.getenv("LOSS_FEEDBACK_TRIGGER_PCT", "0.004")),
         feedback_interval_sec=int(os.getenv("FEEDBACK_INTERVAL_SEC", "300")),
         order_size_buffer=float(os.getenv("ORDER_SIZE_BUFFER", "0.9")),
+        use_available_balance_sizing=_to_bool(os.getenv("USE_AVAILABLE_BALANCE_SIZING", "true")),
         dry_run=_to_bool(os.getenv("DRY_RUN", "false")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         armed_trading=_to_bool(os.getenv("ARMED_TRADING", "true")),

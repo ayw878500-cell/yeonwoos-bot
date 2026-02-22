@@ -222,7 +222,7 @@ def main() -> None:
     stats = DailyStats()
     error_backoff_sec = settings.loop_interval_sec
 
-    logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s", settings.dry_run, settings.symbol, settings.position_mode)
+    logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s use_available_balance_sizing=%s", settings.dry_run, settings.symbol, settings.position_mode, settings.use_available_balance_sizing)
     notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
 
     while True:
@@ -447,14 +447,18 @@ def main() -> None:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            margin_size = calc_position_size(
-                equity_usdt=equity,
-                entry_fraction=settings.entry_fraction,
-                leverage=settings.leverage,
-                entry_price=price,
-                stop_loss_pct=settings.stop_loss_pct,
-                risk_per_trade=settings.risk_per_trade,
-            )
+            if settings.use_available_balance_sizing:
+                available_margin = client.account_available(settings.symbol, settings.product_type, settings.margin_coin)
+                margin_size = round(max(available_margin * settings.entry_fraction, 0.0), 4)
+            else:
+                margin_size = calc_position_size(
+                    equity_usdt=equity,
+                    entry_fraction=settings.entry_fraction,
+                    leverage=settings.leverage,
+                    entry_price=price,
+                    stop_loss_pct=settings.stop_loss_pct,
+                    risk_per_trade=settings.risk_per_trade,
+                )
 
             if margin_size < settings.min_order_margin_usdt:
                 logger.info("[SKIP] 주문금액 부족: %.4f", margin_size)

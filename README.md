@@ -87,6 +87,7 @@ TELEGRAM_CHAT_ID=내채팅아이디
 ```env
 LEVERAGE=10
 ENTRY_FRACTION=1.0
+USE_AVAILABLE_BALANCE_SIZING=true
 MAX_DAILY_STOPLOSS=3
 DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
@@ -141,12 +142,13 @@ FEEDBACK_INTERVAL_SEC=300
    - BB(20, 2.4), EMA Cross(9/21), EMA200(EMA3 스무딩), VWAP(hlc3), RSI(7/EMA3), Stoch(5,3,3)
 2. 5m 기준으로 매수/매도 조건 중 **2개 이상** 같은 방향이면 진입 후보가 됩니다.
 3. 5m/15m 추세가 같은 방향인지 확인하고, 같을 때만 진입합니다. (3m은 참고용 로그)
-4. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
-5. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
-6. +2R(기본 2.0R) 도달 시 50% 반익절 후 남은 포지션 손절가를 본절(진입가)로 이동합니다.
-7. 손실이 커지는 구간에서는 5m/15m 추세 재정렬 + 신호강도 조건 충족 시 최대 `MAX_ADD_COUNT`만큼만 추가진입합니다.
-8. 손실이 `LOSS_FEEDBACK_TRIGGER_PCT`를 넘으면 `FEEDBACK_INTERVAL_SEC`마다 실시간 피드백 알림을 텔레그램으로 보냅니다.
-9. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
+4. 진입금액은 기본적으로 실시간 가용잔고(`available`) × `ENTRY_FRACTION`으로 계산합니다.
+5. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
+6. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
+7. +2R(기본 2.0R) 도달 시 50% 반익절 후 남은 포지션 손절가를 본절(진입가)로 이동합니다.
+8. 손실이 커지는 구간에서는 5m/15m 추세 재정렬 + 신호강도 조건 충족 시 최대 `MAX_ADD_COUNT`만큼만 추가진입합니다.
+9. 손실이 `LOSS_FEEDBACK_TRIGGER_PCT`를 넘으면 `FEEDBACK_INTERVAL_SEC`마다 실시간 피드백 알림을 텔레그램으로 보냅니다.
+10. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
 
 ### 4-1) 내가 요청한 지표를 실제로 어떻게 쓰는지 (쉬운 설명)
 
