@@ -108,6 +108,19 @@ class BitgetClient:
         data = self._request("GET", path)
         return float(data["data"][0]["lastPr"])
 
+    def symbols(self, product_type: str) -> list[str]:
+        path = f"/api/v2/mix/market/tickers?productType={product_type}"
+        data = self._request("GET", path)
+        rows = data.get("data") or []
+        out: list[str] = []
+        for row in rows:
+            symbol = row.get("symbol") if isinstance(row, dict) else None
+            if symbol:
+                out.append(str(symbol))
+        if not out:
+            raise BitgetClientError("심볼 목록을 가져오지 못했습니다.")
+        return out
+
     def account_equity(self, symbol: str, product_type: str, margin_coin: str) -> float:
         path = (
             "/api/v2/mix/account/account"

@@ -61,7 +61,8 @@ windows\start_now.cmd
 4. **시스템 시간 자동 동기화**: Windows 시간 자동 설정 ON (서명 오류 예방).
 5. **심볼/상품타입 확인**: `BITGET_SYMBOL`, `BITGET_PRODUCT_TYPE` 값 일치 확인.
 6. **포지션 모드 일치**: `POSITION_MODE=hedge`(양방향) 또는 `oneway`(단방향)을 계정과 맞춤.
-7. **최초 실행은 DRY_RUN 권장**: 연동 점검 후 실전 전환.
+7. **멀티 심볼 모드 확인**: `AUTO_SCAN_ALL_SYMBOLS=true`, `MAX_SCAN_SYMBOLS=20` 또는 `SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT`
+8. **최초 실행은 DRY_RUN 권장**: 연동 점검 후 실전 전환.
 
 봇은 시작 시 자동으로 비트겟 연결 점검(ping + 계좌조회)을 수행하고,
 실패하면 자동 재시도(backoff)합니다.
@@ -77,6 +78,9 @@ BITGET_API_KEY=내키
 BITGET_API_SECRET=내시크릿
 BITGET_API_PASSPHRASE=내패스프레이즈
 POSITION_MODE=hedge
+AUTO_SCAN_ALL_SYMBOLS=true
+MAX_SCAN_SYMBOLS=20
+SYMBOLS=
 
 TELEGRAM_BOT_TOKEN=내텔레그램봇토큰
 TELEGRAM_CHAT_ID=내채팅아이디
@@ -98,6 +102,9 @@ ORDER_SIZE_BUFFER=0.9
 REPORT_HOUR_UTC=0
 DRY_RUN=false
 POSITION_MODE=hedge
+AUTO_SCAN_ALL_SYMBOLS=true
+MAX_SCAN_SYMBOLS=20
+SYMBOLS=
 LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING
 ARMED_TRADING=true
 ```
@@ -182,6 +189,14 @@ FEEDBACK_INTERVAL_SEC=300
    - K가 D를 위에서 아래로 뚫고 K>70이면: 매도 점수 +1
 
 마지막으로, 위 점수로 나온 방향이 **5m/15m 추세 방향과 같을 때만** 실제 주문으로 진행합니다. (3m은 참고)
+
+---
+
+## 4-2) 멀티 심볼 자동 진입
+
+- 기본은 `AUTO_SCAN_ALL_SYMBOLS=true`로 USDT 선물 심볼을 자동 스캔합니다.
+- `MAX_SCAN_SYMBOLS` 만큼만 스캔해서 과부하를 막습니다.
+- 특정 심볼만 쓰고 싶으면 `SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT` 처럼 직접 지정하세요.
 
 ---
 

@@ -14,6 +14,9 @@ class Settings:
     base_url: str
 
     symbol: str
+    symbols_csv: str
+    auto_scan_all_symbols: bool
+    max_scan_symbols: int
     product_type: str
     margin_coin: str
 
@@ -116,6 +119,9 @@ def load_settings() -> Settings:
         api_passphrase=_require("BITGET_API_PASSPHRASE"),
         base_url=os.getenv("BITGET_BASE_URL", "https://api.bitget.com").strip(),
         symbol=os.getenv("BITGET_SYMBOL", "BTCUSDT").strip(),
+        symbols_csv=os.getenv("SYMBOLS", "").strip(),
+        auto_scan_all_symbols=_to_bool(os.getenv("AUTO_SCAN_ALL_SYMBOLS", "true")),
+        max_scan_symbols=int(os.getenv("MAX_SCAN_SYMBOLS", "20")),
         product_type=os.getenv("BITGET_PRODUCT_TYPE", "USDT-FUTURES").strip(),
         margin_coin=os.getenv("BITGET_MARGIN_COIN", "USDT").strip(),
         leverage=int(os.getenv("LEVERAGE", "10")),
@@ -161,6 +167,8 @@ def load_settings() -> Settings:
 def _validate(s: Settings) -> None:
     if s.leverage < 1 or s.leverage > 10:
         raise ConfigError("LEVERAGE는 1~10 범위여야 합니다.")
+    if s.max_scan_symbols < 1 or s.max_scan_symbols > 200:
+        raise ConfigError("MAX_SCAN_SYMBOLS는 1~200 범위로 설정하세요.")
     if not (0 < s.entry_fraction <= 1):
         raise ConfigError("ENTRY_FRACTION은 0 초과 1 이하로 입력하세요.")
     if s.stop_loss_pct <= 0:

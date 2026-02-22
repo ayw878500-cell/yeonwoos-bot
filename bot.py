@@ -14,6 +14,7 @@ from telegram_notifier import TelegramNotifier
 
 @dataclass
 class Position:
+    symbol: str
     side: str
     entry_price: float
     margin_usdt: float
@@ -31,6 +32,16 @@ class DailyStats:
     win_count: int = 0
     loss_count: int = 0
     skipped_signals: int = 0
+
+
+@dataclass
+class SignalCandidate:
+    symbol: str
+    signal: any
+    price: float
+    trend_3m: str | None
+    trend_5m: str | None
+    trend_15m: str | None
 
 
 def setup_logger() -> logging.Logger:
@@ -97,7 +108,7 @@ def place_order_with_balance_fallback(
     size_usdt: float,
     leverage: int,
     is_close: bool,
-) -> float:
+) -> float | None:
     effective_size = size_usdt
     if not is_close:
         available = client.account_available(symbol, product_type, margin_coin)
@@ -209,6 +220,67 @@ def wait_for_bitget_connection(
             time.sleep(delay)
             delay = min(delay * 2, 30)
 
+
+
+def configured_symbols(settings: Settings, client: BitgetClient, logger: logging.Logger) -> list[str]:
+    if settings.symbols_csv:
+        symbols = [s.strip().upper() for s in settings.symbols_csv.split(",") if s.strip()]
+        return symbols
+    if settings.auto_scan_all_symbols:
+        try:
+            symbols = client.symbols(settings.product_type)
+            symbols = [s for s in symbols if s.endswith("USDT")]
+            return symbols[: settings.max_scan_symbols]
+        except BitgetClientError as exc:
+            logger.warning("[SYMBOL_SCAN] 전체 심볼 조회 실패, 단일 심볼로 대체: %s", exc)
+    return [settings.symbol]
+
+
+def find_signal_candidate(
+    symbols: list[str],
+    client: BitgetClient,
+    settings: Settings,
+    strategy: MultiIndicatorStrategy,
+    logger: logging.Logger,
+) -> SignalCandidate | None:
+    for symbol in symbols:
+        candles_3m = client.candles(symbol, settings.product_type, "3m", limit=300)
+        candles_5m = client.candles(symbol, settings.product_type, "5m", limit=300)
+        candles_15m = client.candles(symbol, settings.product_type, "15m", limit=300)
+
+        signal = strategy.evaluate(
+            closes=candles_5m["closes"],
+            highs=candles_5m["highs"],
+            lows=candles_5m["lows"],
+            volumes=candles_5m["volumes"],
+        )
+        if not signal:
+            continue
+
+        trend_3m = strategy.trend_direction(candles_3m["closes"])
+        trend_5m = strategy.trend_direction(candles_5m["closes"])
+        trend_15m = strategy.trend_direction(candles_15m["closes"])
+
+        if trend_5m == trend_15m == signal.side:
+            return SignalCandidate(
+                symbol=symbol,
+                signal=signal,
+                price=candles_5m["closes"][-1],
+                trend_3m=trend_3m,
+                trend_5m=trend_5m,
+                trend_15m=trend_15m,
+            )
+
+        logger.info(
+            "[SKIP] 추세 불일치(5m/15m 기준) symbol=%s signal=%s trend3=%s trend5=%s trend15=%s",
+            symbol,
+            signal.side,
+            trend_3m,
+            trend_5m,
+            trend_15m,
+        )
+    return None
+
 def main() -> None:
     settings = load_settings()
     logger = setup_logger()
@@ -229,7 +301,10 @@ def main() -> None:
     error_backoff_sec = settings.loop_interval_sec
 
     logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s use_available_balance_sizing=%s full_balance_entry=%s", settings.dry_run, settings.symbol, settings.position_mode, settings.use_available_balance_sizing, settings.full_balance_entry)
-    notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
+    notifier.send(f"🚀 봇 시작: DRY_RUN={settings.dry_run}")
+
+    trade_symbols = configured_symbols(settings, client, logger)
+    logger.info("[SYMBOLS] 매매 대상 심볼 수: %s", len(trade_symbols))
 
     while True:
         try:
@@ -242,9 +317,9 @@ def main() -> None:
                 last_report_date = None
                 logger.info("[DAILY_RESET] 일일 통계 초기화")
 
-            candles_3m = client.candles(settings.symbol, settings.product_type, "3m", limit=300)
-            candles_5m = client.candles(settings.symbol, settings.product_type, "5m", limit=300)
-            candles_15m = client.candles(settings.symbol, settings.product_type, "15m", limit=300)
+            candles_3m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "3m", limit=300)
+            candles_5m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "5m", limit=300)
+            candles_15m = client.candles(position.symbol if position else settings.symbol, settings.product_type, "15m", limit=300)
 
             price = candles_5m["closes"][-1]
             equity = client.account_equity(settings.symbol, settings.product_type, settings.margin_coin)
@@ -297,7 +372,7 @@ def main() -> None:
                     if partial_close_size > 0:
                         if not settings.dry_run:
                             client.place_market_order(
-                                symbol=settings.symbol,
+                                symbol=position.symbol,
                                 product_type=settings.product_type,
                                 margin_coin=settings.margin_coin,
                                 side=close_side(position.side),
@@ -342,7 +417,7 @@ def main() -> None:
                                     settings=settings,
                                     logger=logger,
                                     notifier=notifier,
-                                    symbol=settings.symbol,
+                                    symbol=position.symbol,
                                     product_type=settings.product_type,
                                     margin_coin=settings.margin_coin,
                                     side=position.side,
@@ -398,7 +473,7 @@ def main() -> None:
                     trade_pnl = pnl_pct(position.side, position.entry_price, price)
                     if not settings.dry_run:
                         client.place_market_order(
-                            symbol=settings.symbol,
+                            symbol=position.symbol,
                             product_type=settings.product_type,
                             margin_coin=settings.margin_coin,
                             side=close_side(position.side),
@@ -422,31 +497,22 @@ def main() -> None:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            signal = strategy.evaluate(
-                closes=candles_5m["closes"],
-                highs=candles_5m["highs"],
-                lows=candles_5m["lows"],
-                volumes=candles_5m["volumes"],
+            candidate = find_signal_candidate(
+                symbols=trade_symbols,
+                client=client,
+                settings=settings,
+                strategy=strategy,
+                logger=logger,
             )
-            if not signal:
+            if not candidate:
                 time.sleep(settings.loop_interval_sec)
                 continue
 
-            trend_3m = strategy.trend_direction(candles_3m["closes"])
-            trend_5m = strategy.trend_direction(candles_5m["closes"])
-            trend_15m = strategy.trend_direction(candles_15m["closes"])
-
-            if not (trend_5m == trend_15m == signal.side):
-                logger.info(
-                    "[SKIP] 추세 불일치(5m/15m 기준) signal=%s trend3=%s trend5=%s trend15=%s",
-                    signal.side,
-                    trend_3m,
-                    trend_5m,
-                    trend_15m,
-                )
-                stats.skipped_signals += 1
-                time.sleep(settings.loop_interval_sec)
-                continue
+            signal = candidate.signal
+            price = candidate.price
+            trend_3m = candidate.trend_3m
+            trend_5m = candidate.trend_5m
+            trend_15m = candidate.trend_15m
 
             if (time.time() - last_signal_ts) < settings.signal_cooldown_sec:
                 stats.skipped_signals += 1
@@ -454,7 +520,7 @@ def main() -> None:
                 continue
 
             if settings.use_available_balance_sizing:
-                available_margin = client.account_available(settings.symbol, settings.product_type, settings.margin_coin)
+                available_margin = client.account_available(candidate.symbol, settings.product_type, settings.margin_coin)
                 if settings.full_balance_entry:
                     margin_size = round(max(available_margin, 0.0), 4)
                 else:
@@ -489,7 +555,7 @@ def main() -> None:
                     settings=settings,
                     logger=logger,
                     notifier=notifier,
-                    symbol=settings.symbol,
+                    symbol=candidate.symbol,
                     product_type=settings.product_type,
                     margin_coin=settings.margin_coin,
                     side=signal.side,
@@ -506,6 +572,7 @@ def main() -> None:
                 executed_margin_size = result_size
 
             position = Position(
+                symbol=candidate.symbol,
                 side=signal.side,
                 entry_price=price,
                 margin_usdt=executed_margin_size,
@@ -516,12 +583,13 @@ def main() -> None:
             stats.entries += 1
 
             notifier.send(
-                f"📌 진입 | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
+                f"📌 진입 | symbol={candidate.symbol} | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
                 f"trend=5m/15m 일치(3m 참고) | price={price:.2f} | margin={executed_margin_size:.2f} | "
                 f"lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
             )
             logger.info(
-                "[OPEN] side=%s score=%s reasons=%s trend3=%s trend5=%s trend15=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
+                "[OPEN] symbol=%s side=%s score=%s reasons=%s trend3=%s trend5=%s trend15=%s price=%.2f margin=%.2f sl=%.2f tp=%.2f",
+                candidate.symbol,
                 signal.side,
                 signal.score,
                 ",".join(signal.reasons),
