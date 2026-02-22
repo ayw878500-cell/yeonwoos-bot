@@ -240,9 +240,9 @@ def main() -> None:
             trend_5m = strategy.trend_direction(candles_5m["closes"])
             trend_15m = strategy.trend_direction(candles_15m["closes"])
 
-            if not (trend_3m == trend_5m == trend_15m == signal.side):
+            if not (trend_5m == trend_15m == signal.side):
                 logger.info(
-                    "[SKIP] 멀티타임프레임 추세 불일치 signal=%s trend3=%s trend5=%s trend15=%s",
+                    "[SKIP] 추세 불일치(5m/15m 기준) signal=%s trend3=%s trend5=%s trend15=%s",
                     signal.side,
                     trend_3m,
                     trend_5m,
@@ -301,7 +301,7 @@ def main() -> None:
 
             notifier.send(
                 f"📌 진입 | side={signal.side} | score={signal.score} | reasons={','.join(signal.reasons)} | "
-                f"trend=3m/5m/15m 일치 | price={price:.2f} | margin={margin_size:.2f} | "
+                f"trend=5m/15m 일치(3m 참고) | price={price:.2f} | margin={margin_size:.2f} | "
                 f"lev={settings.leverage}x | sl={stop_loss:.2f} | tp={take_profit:.2f}"
             )
             logger.info(
