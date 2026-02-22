@@ -39,6 +39,15 @@ cd <봇파일있는곳>
 windows\install_autostart.cmd
 ```
 
+
+### 방법 C (초보자 한방 실행)
+```cmd
+cd <봇파일있는곳>
+windows\start_now.cmd
+```
+- 설치 + 가상환경 확인 + 즉시 실행을 한 번에 처리합니다.
+- 명령어를 한 줄에 이어 쓰다가 생기는 오류를 줄일 수 있습니다.
+
 ---
 
 
@@ -215,7 +224,11 @@ cd <봇파일있는곳>
 권한 문제입니다. 스크립트가 자동으로 Startup 방식으로 등록합니다.
 
 
-### (3) `-File ... 경로에 잘못된 문자가 있습니다` 오류
+### (3) 명령어를 한 줄에 붙여쓴 경우 오류
+`powershell ... .ps1Test-Path ...`처럼 붙으면 PowerShell이 파일명을 잘못 읽습니다.
+명령어는 반드시 **줄바꿈해서 한 줄씩** 실행하세요. 가장 쉬운 방법은 `windows\start_now.cmd` 한 줄 실행입니다.
+
+### (4) `-File ... 경로에 잘못된 문자가 있습니다` 오류
 이 오류는 보통 아래 이유로 발생합니다.
 - 복사 과정에서 따옴표가 일반 따옴표가 아니라 특수문자 따옴표(스마트 따옴표)로 바뀜
 - 현재 위치가 `봇파일있는곳`이 아님
@@ -243,7 +256,7 @@ windows\install_autostart.cmd
 
 
 
-### (4) `400 Client Error: Bad Request` 주문 오류
+### (5) `400 Client Error: Bad Request` 주문 오류
 이제 로그에 `status/code/msg/payload`가 같이 찍히도록 보강했습니다.
 
 이 오류가 나오면 아래 순서로 점검하세요.
@@ -253,7 +266,7 @@ windows\install_autostart.cmd
 4) 주문 size 단위(USDT/계약수) 규칙 확인
 
 
-### (4) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
+### (6) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
 이건 대부분 `.env` 파일 인코딩이 UTF-8이 아닐 때 발생합니다.
 
 아래 순서대로 바로 해결하세요.
