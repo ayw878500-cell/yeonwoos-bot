@@ -27,7 +27,7 @@ class BitgetClient:
             read=3,
             status=3,
             backoff_factor=0.5,
-            allowed_methods=frozenset(["GET", "POST"]),
+            allowed_methods=frozenset(["GET"]),
             status_forcelist=[429, 500, 502, 503, 504],
         )
         self.session = requests.Session()

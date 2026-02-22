@@ -312,10 +312,9 @@ def main() -> None:
                 day = date.today()
                 day_start_equity = 0.0
                 stoploss_count = 0
-                position = None
                 stats = DailyStats()
                 last_report_date = None
-                logger.info("[DAILY_RESET] 일일 통계 초기화")
+                logger.info("[DAILY_RESET] 일일 통계 초기화 | open_position=%s", position is not None)
 
             equity = client.account_equity(settings.symbol, settings.product_type, settings.margin_coin)
 
@@ -334,18 +333,6 @@ def main() -> None:
                 logger.info("[DAILY_REPORT] %s", report.replace("\n", " | "))
                 notifier.send(report)
                 last_report_date = now_utc.date()
-
-            if daily_return >= settings.daily_target_pct:
-                logger.info("[STOP_DAY] 일일 목표 달성: %.2f%%", daily_return * 100)
-                notifier.send(f"✅ 일일 목표 달성: {daily_return*100:.2f}% -> 오늘 거래 종료")
-                time.sleep(settings.loop_interval_sec)
-                continue
-
-            if stoploss_count >= settings.max_daily_stoploss:
-                logger.info("[STOP_DAY] 일일 손절 횟수 초과: %s", stoploss_count)
-                notifier.send(f"🛑 손절 {stoploss_count}회 도달 -> 오늘 거래 종료")
-                time.sleep(settings.loop_interval_sec)
-                continue
 
             if position is not None:
                 candles_3m = client.candles(position.symbol, settings.product_type, "3m", limit=300)
@@ -494,6 +481,18 @@ def main() -> None:
                     logger.info("[CLOSE] %s pnl=%.2f%%", reason, trade_pnl * 100)
                     position = None
 
+                time.sleep(settings.loop_interval_sec)
+                continue
+
+            if daily_return >= settings.daily_target_pct:
+                logger.info("[STOP_DAY] 일일 목표 달성: %.2f%%", daily_return * 100)
+                notifier.send(f"✅ 일일 목표 달성: {daily_return*100:.2f}% -> 오늘 거래 종료")
+                time.sleep(settings.loop_interval_sec)
+                continue
+
+            if stoploss_count >= settings.max_daily_stoploss:
+                logger.info("[STOP_DAY] 일일 손절 횟수 초과: %s", stoploss_count)
+                notifier.send(f"🛑 손절 {stoploss_count}회 도달 -> 오늘 거래 종료")
                 time.sleep(settings.loop_interval_sec)
                 continue
 
