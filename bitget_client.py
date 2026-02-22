@@ -141,11 +141,11 @@ class BitgetClient:
         )
         data = self._request("GET", path)
         account = data.get("data") or {}
-        for key in ("available", "availableBalance", "maxOpenPosAvailable"):
+        for key in ("availableBalance", "available"):
             value = account.get(key)
             if value is not None:
                 return float(value)
-        for key in ("usdtEquity", "equity"):
+        for key in ("usdtEquity", "equity", "maxOpenPosAvailable"):
             value = account.get(key)
             if value is not None:
                 return float(value)

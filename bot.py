@@ -113,7 +113,7 @@ def place_order_with_balance_fallback(
     if not is_close:
         available = client.account_available(symbol, product_type, margin_coin)
         if settings.full_balance_entry:
-            cap_size = round(max(available * settings.balance_entry_safety_buffer, 0.0), 4)
+            cap_size = round(max(available, 0.0), 4)
         else:
             cap_size = round(max(available * settings.order_size_buffer, 0.0), 4)
         if cap_size <= 0:
@@ -137,23 +137,20 @@ def place_order_with_balance_fallback(
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
             if settings.full_balance_entry:
-                retry_count = settings.dynamic_buffer_retry_count
+                retry_count = 5
+                step = 0.01
                 for attempt in range(1, retry_count + 1):
-                    dynamic_buffer = max(
-                        settings.balance_entry_safety_buffer - (settings.dynamic_buffer_step * attempt),
-                        settings.dynamic_buffer_min,
-                    )
                     available = client.account_available(symbol, product_type, margin_coin)
-                    reduced_size = round(max(available * dynamic_buffer, 0.0), 4)
+                    reduced_size = round(max(available - (step * attempt), 0.0), 4)
                     if reduced_size < settings.min_order_margin_usdt:
-                        logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 동적 축소 후 최소주문금액 미만")
-                        notifier.send("⚠️ 잔고 부족으로 주문 스킵(동적 축소 후 최소주문금액 미만)")
+                        logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 실시간가용잔고 축소 후 최소주문금액 미만")
+                        notifier.send("⚠️ 잔고 부족으로 주문 스킵(실시간가용잔고 기준 최소주문금액 미만)")
                         return None
                     logger.warning(
-                        "[ORDER_RETRY_DYNAMIC] code=40762 동적 축소 재시도(%s/%s): buffer=%.4f size=%.4f",
+                        "[ORDER_RETRY_AVAILABLE] code=40762 실시간가용잔고 재시도(%s/%s): available=%.4f size=%.4f",
                         attempt,
                         retry_count,
-                        dynamic_buffer,
+                        available,
                         reduced_size,
                     )
                     try:
@@ -167,16 +164,14 @@ def place_order_with_balance_fallback(
                             position_mode=settings.position_mode,
                             is_close=is_close,
                         )
-                        notifier.send(
-                            f"ℹ️ 잔고초과 보정 성공: 동적 버퍼 {dynamic_buffer:.4f}로 주문 체결"
-                        )
+                        notifier.send(f"ℹ️ 잔고초과 보정 성공: 실시간 available 기준 {reduced_size:.4f} 체결")
                         return reduced_size
                     except BitgetClientError as retry_exc:
                         if "code=40762" in str(retry_exc):
                             continue
                         raise
-                logger.info("[ORDER_SKIP] 동적 축소 재시도 후에도 잔고초과(code=40762)로 주문 스킵")
-                notifier.send("⚠️ 잔고 부족으로 주문 스킵(동적 축소 재시도 실패)")
+                logger.info("[ORDER_SKIP] 실시간가용잔고 재시도 후에도 잔고초과(code=40762)로 주문 스킵")
+                notifier.send("⚠️ 잔고 부족으로 주문 스킵(실시간가용잔고 재시도 실패)")
                 return None
             available = client.account_available(symbol, product_type, margin_coin)
             reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
@@ -561,7 +556,7 @@ def main() -> None:
             if settings.use_available_balance_sizing:
                 available_margin = client.account_available(candidate.symbol, settings.product_type, settings.margin_coin)
                 if settings.full_balance_entry:
-                    margin_size = round(max(available_margin * settings.balance_entry_safety_buffer, 0.0), 4)
+                    margin_size = round(max(available_margin, 0.0), 4)
                 else:
                     margin_size = round(max(available_margin * settings.entry_fraction, 0.0), 4)
             else:
