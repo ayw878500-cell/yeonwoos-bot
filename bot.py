@@ -486,6 +486,8 @@ def main() -> None:
                 )
                 if result_size is None:
                     stats.skipped_signals += 1
+                    last_signal_ts = time.time()
+                    logger.info("[SKIP] 잔고 부족 주문 스킵 후 쿨다운 적용: %ss", settings.signal_cooldown_sec)
                     time.sleep(settings.loop_interval_sec)
                     continue
                 executed_margin_size = result_size

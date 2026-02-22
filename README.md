@@ -268,6 +268,7 @@ windows\install_autostart.cmd
 5) 주문 직전에 실시간 가용잔고를 다시 조회해 주문금액을 자동 상한 처리합니다.
 6) `code=40762`(잔고 초과)이면, 봇이 자동으로 주문금액을 `ORDER_SIZE_BUFFER` 비율(기본 90%)로 줄여 1회 재시도합니다.
 7) 재시도 후에도 잔고가 부족하면 해당 신호는 주문 스킵 처리하고 다음 루프로 넘어갑니다.
+8) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
 
 
 ### (6) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
