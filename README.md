@@ -240,6 +240,16 @@ windows\install_autostart.cmd
 
 
 
+### (4) `400 Client Error: Bad Request` 주문 오류
+이제 로그에 `status/code/msg/payload`가 같이 찍히도록 보강했습니다.
+
+이 오류가 나오면 아래 순서로 점검하세요.
+1) `.env`의 `BITGET_SYMBOL`, `BITGET_PRODUCT_TYPE`, `BITGET_MARGIN_COIN` 값이 거래창과 같은지
+2) API 권한(선물 거래/조회) + IP 화이트리스트 설정
+3) 포지션 모드(원웨이/헤지)와 주문 파라미터 호환 여부
+4) 주문 size 단위(USDT/계약수) 규칙 확인
+
+
 ### (4) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
 이건 대부분 `.env` 파일 인코딩이 UTF-8이 아닐 때 발생합니다.
 

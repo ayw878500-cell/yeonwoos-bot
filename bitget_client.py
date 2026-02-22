@@ -51,24 +51,50 @@ class BitgetClient:
             "locale": "ko-KR",
         }
 
+    def _extract_error_detail(self, response: requests.Response | None) -> str:
+        if response is None:
+            return "response=none"
+        status = response.status_code
+        text = (response.text or "").strip()
+        if not text:
+            return f"status={status}, body=empty"
+        try:
+            parsed = response.json()
+            code = parsed.get("code")
+            msg = parsed.get("msg")
+            if code is not None or msg is not None:
+                return f"status={status}, code={code}, msg={msg}"
+            return f"status={status}, body={str(parsed)[:300]}"
+        except ValueError:
+            return f"status={status}, body={text[:300]}"
+
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         body = json.dumps(payload) if payload else ""
         headers = self._headers(method, path, body)
         url = f"{self.base_url}{path}"
 
+        response: requests.Response | None = None
         try:
             response = self.session.request(method, url, headers=headers, data=body, timeout=10)
             response.raise_for_status()
             data = response.json()
         except requests.RequestException as exc:
-            raise BitgetClientError(f"비트겟 요청 실패: {method} {path} | {exc}") from exc
+            detail = self._extract_error_detail(getattr(exc, "response", response))
+            raise BitgetClientError(
+                f"비트겟 요청 실패: {method} {path} | {detail} | payload={payload}"
+            ) from exc
         except ValueError as exc:
-            raise BitgetClientError(f"비트겟 응답 JSON 파싱 실패: {method} {path}") from exc
+            snippet = (response.text[:300] if response is not None else "")
+            raise BitgetClientError(
+                f"비트겟 응답 JSON 파싱 실패: {method} {path} | body={snippet}"
+            ) from exc
 
         code = str(data.get("code", ""))
         if code and code != "00000":
             msg = data.get("msg", "unknown error")
-            raise BitgetClientError(f"비트겟 API 오류: code={code}, msg={msg}, path={path}")
+            raise BitgetClientError(
+                f"비트겟 API 오류: code={code}, msg={msg}, path={path}, payload={payload}"
+            )
         return data
 
     def ping(self) -> None:
