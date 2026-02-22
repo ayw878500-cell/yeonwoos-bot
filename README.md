@@ -189,7 +189,7 @@ FEEDBACK_INTERVAL_SEC=300
 2. 5m 기준으로 매수/매도 조건 중 **2개 이상** 같은 방향이면 진입 후보가 됩니다.
 3. 5m/15m 추세가 같은 방향인지 확인하고, 같을 때만 진입합니다. (3m은 참고용 로그)
 4. 기본 모드(`FULL_BALANCE_ENTRY=true`)에서는 신호 발생 시 실시간 가용잔고(`available`) 전액으로 바로 진입 시도합니다.
-   잔고초과(code=40762)가 발생하면 실시간 가용잔고를 재조회해서 소액(0.01 USDT) 단위로만 줄여 최대 5회 자동 재시도합니다.
+   잔고초과(code=40762)가 발생하면 해당 신호는 추가 알림 없이 스킵하고 다음 신호를 대기합니다.
 5. `FULL_BALANCE_ENTRY=false`일 때는 실시간 가용잔고(`available`) × `ENTRY_FRACTION` 방식으로 진입합니다.
 6. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
 7. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
@@ -325,10 +325,9 @@ windows\install_autostart.cmd
 4) 주문 size 단위(USDT/계약수) 규칙 확인
 5) 주문 직전에 실시간 가용잔고를 다시 조회해 주문금액을 자동 상한 처리합니다.
 6) `FULL_BALANCE_ENTRY=true`에서는 가용잔고(`available`) 전액으로 먼저 주문합니다.
-7) `code=40762`가 나면 가용잔고를 다시 조회해 0.01 USDT씩만 줄여 최대 5회 자동 재시도합니다.
-8) 그래도 실패하면 해당 신호를 스킵합니다.
-9) `FULL_BALANCE_ENTRY=false` 모드에서는 기존처럼 `ORDER_SIZE_BUFFER` 기반 1회 축소 재시도를 사용합니다.
-10) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
+7) `code=40762`가 나면 `FULL_BALANCE_ENTRY=true` 모드에서는 해당 신호를 알림 없이 바로 스킵합니다.
+8) `FULL_BALANCE_ENTRY=false` 모드에서는 기존처럼 `ORDER_SIZE_BUFFER` 기반 1회 축소 재시도를 사용합니다.
+9) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
 
 
 ### (6) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류
