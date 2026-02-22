@@ -41,6 +41,7 @@ class Settings:
     max_add_count: int
     loss_feedback_trigger_pct: float
     feedback_interval_sec: int
+    order_size_buffer: float
 
     dry_run: bool
     live_confirm: str
@@ -137,6 +138,7 @@ def load_settings() -> Settings:
         max_add_count=int(os.getenv("MAX_ADD_COUNT", "1")),
         loss_feedback_trigger_pct=float(os.getenv("LOSS_FEEDBACK_TRIGGER_PCT", "0.004")),
         feedback_interval_sec=int(os.getenv("FEEDBACK_INTERVAL_SEC", "300")),
+        order_size_buffer=float(os.getenv("ORDER_SIZE_BUFFER", "0.9")),
         dry_run=_to_bool(os.getenv("DRY_RUN", "false")),
         live_confirm=os.getenv("LIVE_CONFIRM", "").strip(),
         armed_trading=_to_bool(os.getenv("ARMED_TRADING", "true")),
@@ -191,6 +193,8 @@ def _validate(s: Settings) -> None:
         raise ConfigError("LOSS_FEEDBACK_TRIGGER_PCT는 0 초과 0.05 이하로 설정하세요.")
     if s.feedback_interval_sec < 10:
         raise ConfigError("FEEDBACK_INTERVAL_SEC는 10초 이상으로 설정하세요.")
+    if s.order_size_buffer <= 0 or s.order_size_buffer > 1:
+        raise ConfigError("ORDER_SIZE_BUFFER는 0 초과 1 이하로 설정하세요.")
     if not s.candle_granularity:
         raise ConfigError("CANDLE_GRANULARITY를 입력하세요.")
 

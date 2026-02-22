@@ -92,6 +92,7 @@ DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
 RISK_REWARD_RATIO=2.0
 MIN_ENTRY_CONDITIONS=2
+ORDER_SIZE_BUFFER=0.9
 REPORT_HOUR_UTC=0
 DRY_RUN=false
 POSITION_MODE=hedge
@@ -264,6 +265,7 @@ windows\install_autostart.cmd
 2) API 권한(선물 거래/조회) + IP 화이트리스트 설정
 3) 포지션 모드(원웨이/헤지)와 `POSITION_MODE` 값 일치 여부
 4) 주문 size 단위(USDT/계약수) 규칙 확인
+5) `code=40762`(잔고 초과)이면, 봇이 자동으로 주문금액을 `ORDER_SIZE_BUFFER` 비율(기본 90%)로 줄여 1회 재시도합니다.
 
 
 ### (6) `UnicodeDecodeError: 'utf-8' codec can't decode ...` 오류

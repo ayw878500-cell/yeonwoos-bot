@@ -83,6 +83,55 @@ def feedback_message(side: str, unrealized: float, trend_5m: str | None, trend_1
         trend_comment = "추세 혼조"
     return f"📌 실시간 피드백 | side={side} | 미실현={unrealized*100:.2f}% | 5m={trend_5m} 15m={trend_15m} | {trend_comment}"
 
+
+
+def place_order_with_balance_fallback(
+    client: BitgetClient,
+    settings: Settings,
+    logger: logging.Logger,
+    notifier: TelegramNotifier,
+    symbol: str,
+    product_type: str,
+    margin_coin: str,
+    side: str,
+    size_usdt: float,
+    leverage: int,
+    is_close: bool,
+) -> float:
+    try:
+        client.place_market_order(
+            symbol=symbol,
+            product_type=product_type,
+            margin_coin=margin_coin,
+            side=side,
+            size_usdt=size_usdt,
+            leverage=leverage,
+            position_mode=settings.position_mode,
+            is_close=is_close,
+        )
+        return size_usdt
+    except BitgetClientError as exc:
+        if (not is_close) and "code=40762" in str(exc):
+            reduced_size = round(size_usdt * settings.order_size_buffer, 4)
+            if reduced_size < settings.min_order_margin_usdt:
+                raise
+            logger.warning("[ORDER_RETRY] 잔고초과(code=40762)로 주문 축소 재시도: %.4f -> %.4f", size_usdt, reduced_size)
+            notifier.send(
+                f"⚠️ 주문금액 축소 재시도: {size_usdt:.4f} -> {reduced_size:.4f} (잔고초과 code=40762)"
+            )
+            client.place_market_order(
+                symbol=symbol,
+                product_type=product_type,
+                margin_coin=margin_coin,
+                side=side,
+                size_usdt=reduced_size,
+                leverage=leverage,
+                position_mode=settings.position_mode,
+                is_close=is_close,
+            )
+            return reduced_size
+        raise
+
 def daily_report_text(settings: Settings, stats: DailyStats, daily_return: float, stoploss_count: int) -> str:
     win_rate = (stats.win_count / stats.closes * 100) if stats.closes else 0.0
     suggestions: list[str] = []
@@ -260,20 +309,24 @@ def main() -> None:
                     if add_signal and add_signal.side == position.side and add_signal.score >= (settings.min_entry_conditions + 1):
                         add_margin = round(position.margin_usdt * settings.add_on_loss_fraction, 4)
                         if add_margin >= settings.min_order_margin_usdt:
+                            executed_add_margin = add_margin
                             if not settings.dry_run:
-                                client.place_market_order(
+                                executed_add_margin = place_order_with_balance_fallback(
+                                    client=client,
+                                    settings=settings,
+                                    logger=logger,
+                                    notifier=notifier,
                                     symbol=settings.symbol,
                                     product_type=settings.product_type,
                                     margin_coin=settings.margin_coin,
                                     side=position.side,
                                     size_usdt=add_margin,
                                     leverage=settings.leverage,
-                                    position_mode=settings.position_mode,
                                     is_close=False,
                                 )
-                            total_margin = position.margin_usdt + add_margin
+                            total_margin = position.margin_usdt + executed_add_margin
                             position.entry_price = (
-                                (position.entry_price * position.margin_usdt) + (price * add_margin)
+                                (position.entry_price * position.margin_usdt) + (price * executed_add_margin)
                             ) / total_margin
                             position.margin_usdt = total_margin
                             position.stop_loss, position.take_profit = calc_levels(
@@ -284,12 +337,12 @@ def main() -> None:
                             )
                             position.add_count += 1
                             notifier.send(
-                                f"➕ 추가진입 | side={position.side} | add={add_margin:.2f} | avg_entry={position.entry_price:.2f} | add_count={position.add_count}"
+                                f"➕ 추가진입 | side={position.side} | add={executed_add_margin:.2f} | avg_entry={position.entry_price:.2f} | add_count={position.add_count}"
                             )
                             logger.info(
                                 "[ADD_ON_LOSS] side=%s add=%.2f avg=%.2f count=%s",
                                 position.side,
-                                add_margin,
+                                executed_add_margin,
                                 position.entry_price,
                                 position.add_count,
                             )
@@ -392,22 +445,26 @@ def main() -> None:
                 settings.take_profit_pct,
             )
 
+            executed_margin_size = margin_size
             if not settings.dry_run:
-                client.place_market_order(
+                executed_margin_size = place_order_with_balance_fallback(
+                    client=client,
+                    settings=settings,
+                    logger=logger,
+                    notifier=notifier,
                     symbol=settings.symbol,
                     product_type=settings.product_type,
                     margin_coin=settings.margin_coin,
                     side=signal.side,
                     size_usdt=margin_size,
                     leverage=settings.leverage,
-                    position_mode=settings.position_mode,
                     is_close=False,
                 )
 
             position = Position(
                 side=signal.side,
                 entry_price=price,
-                margin_usdt=margin_size,
+                margin_usdt=executed_margin_size,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
             )
