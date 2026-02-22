@@ -88,6 +88,7 @@ TELEGRAM_CHAT_ID=내채팅아이디
 LEVERAGE=10
 ENTRY_FRACTION=1.0
 USE_AVAILABLE_BALANCE_SIZING=true
+FULL_BALANCE_ENTRY=true
 MAX_DAILY_STOPLOSS=3
 DAILY_TARGET_PCT=0.1
 STOP_LOSS_PCT=0.01
@@ -142,13 +143,15 @@ FEEDBACK_INTERVAL_SEC=300
    - BB(20, 2.4), EMA Cross(9/21), EMA200(EMA3 스무딩), VWAP(hlc3), RSI(7/EMA3), Stoch(5,3,3)
 2. 5m 기준으로 매수/매도 조건 중 **2개 이상** 같은 방향이면 진입 후보가 됩니다.
 3. 5m/15m 추세가 같은 방향인지 확인하고, 같을 때만 진입합니다. (3m은 참고용 로그)
-4. 진입금액은 기본적으로 실시간 가용잔고(`available`) × `ENTRY_FRACTION`으로 계산합니다.
-5. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
-6. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
-7. +2R(기본 2.0R) 도달 시 50% 반익절 후 남은 포지션 손절가를 본절(진입가)로 이동합니다.
-8. 손실이 커지는 구간에서는 5m/15m 추세 재정렬 + 신호강도 조건 충족 시 최대 `MAX_ADD_COUNT`만큼만 추가진입합니다.
-9. 손실이 `LOSS_FEEDBACK_TRIGGER_PCT`를 넘으면 `FEEDBACK_INTERVAL_SEC`마다 실시간 피드백 알림을 텔레그램으로 보냅니다.
-10. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
+4. 기본 모드(`FULL_BALANCE_ENTRY=true`)에서는 신호 발생 시 실시간 가용잔고 전체로 진입합니다.
+   (거래소 수수료/체결오차로 40762가 나면 1회만 98%로 축소 재시도)
+5. `FULL_BALANCE_ENTRY=false`일 때는 실시간 가용잔고(`available`) × `ENTRY_FRACTION` 방식으로 진입합니다.
+6. 쿨다운/최소주문금액/일일손절횟수 검사를 통과하면 진입합니다.
+7. 진입 후 손절/익절 자동 관리, SL/TP 도달 시 자동 청산합니다.
+8. +2R(기본 2.0R) 도달 시 50% 반익절 후 남은 포지션 손절가를 본절(진입가)로 이동합니다.
+9. 손실이 커지는 구간에서는 5m/15m 추세 재정렬 + 신호강도 조건 충족 시 최대 `MAX_ADD_COUNT`만큼만 추가진입합니다.
+10. 손실이 `LOSS_FEEDBACK_TRIGGER_PCT`를 넘으면 `FEEDBACK_INTERVAL_SEC`마다 실시간 피드백 알림을 텔레그램으로 보냅니다.
+11. 매일 `REPORT_HOUR_UTC` 정각에 일일 리포트(승률/손익/보완사항)를 텔레그램으로 보냅니다.
 
 ### 4-1) 내가 요청한 지표를 실제로 어떻게 쓰는지 (쉬운 설명)
 
@@ -268,7 +271,9 @@ windows\install_autostart.cmd
 3) 포지션 모드(원웨이/헤지)와 `POSITION_MODE` 값 일치 여부
 4) 주문 size 단위(USDT/계약수) 규칙 확인
 5) 주문 직전에 실시간 가용잔고를 다시 조회해 주문금액을 자동 상한 처리합니다.
-6) `code=40762`(잔고 초과)이면, 봇이 자동으로 주문금액을 `ORDER_SIZE_BUFFER` 비율(기본 90%)로 줄여 1회 재시도합니다.
+6) `code=40762`(잔고 초과)이면 1회 자동 축소 재시도합니다.
+   - `FULL_BALANCE_ENTRY=true` 모드: 가용잔고의 98%로 재시도
+   - 그 외 모드: `ORDER_SIZE_BUFFER` 비율로 재시도
 7) 재시도 후에도 잔고가 부족하면 해당 신호는 주문 스킵 처리하고 다음 루프로 넘어갑니다.
 8) 잔고 부족 스킵이 발생하면 `SIGNAL_COOLDOWN_SEC` 쿨다운을 강제로 적용해 같은 실패 알림 반복을 줄입니다.
 

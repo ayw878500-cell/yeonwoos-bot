@@ -101,7 +101,10 @@ def place_order_with_balance_fallback(
     effective_size = size_usdt
     if not is_close:
         available = client.account_available(symbol, product_type, margin_coin)
-        cap_size = round(max(available * settings.order_size_buffer, 0.0), 4)
+        if settings.full_balance_entry:
+            cap_size = round(max(available, 0.0), 4)
+        else:
+            cap_size = round(max(available * settings.order_size_buffer, 0.0), 4)
         if cap_size <= 0:
             raise BitgetClientError("가용 잔고가 0이라 주문할 수 없습니다.")
         if effective_size > cap_size:
@@ -123,7 +126,10 @@ def place_order_with_balance_fallback(
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
             available = client.account_available(symbol, product_type, margin_coin)
-            reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
+            if settings.full_balance_entry:
+                reduced_size = round(max(available * 0.98, 0.0), 4)
+            else:
+                reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
             if reduced_size < settings.min_order_margin_usdt:
                 logger.info("[ORDER_SKIP] 잔고초과(code=40762) + 최소주문금액 미만으로 주문 스킵")
                 notifier.send("⚠️ 잔고 부족으로 주문 스킵(최소주문금액 미만)")
@@ -222,7 +228,7 @@ def main() -> None:
     stats = DailyStats()
     error_backoff_sec = settings.loop_interval_sec
 
-    logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s use_available_balance_sizing=%s", settings.dry_run, settings.symbol, settings.position_mode, settings.use_available_balance_sizing)
+    logger.info("[START] DRY_RUN=%s symbol=%s position_mode=%s use_available_balance_sizing=%s full_balance_entry=%s", settings.dry_run, settings.symbol, settings.position_mode, settings.use_available_balance_sizing, settings.full_balance_entry)
     notifier.send(f"🚀 봇 시작: {settings.symbol} / DRY_RUN={settings.dry_run}")
 
     while True:
@@ -449,7 +455,10 @@ def main() -> None:
 
             if settings.use_available_balance_sizing:
                 available_margin = client.account_available(settings.symbol, settings.product_type, settings.margin_coin)
-                margin_size = round(max(available_margin * settings.entry_fraction, 0.0), 4)
+                if settings.full_balance_entry:
+                    margin_size = round(max(available_margin, 0.0), 4)
+                else:
+                    margin_size = round(max(available_margin * settings.entry_fraction, 0.0), 4)
             else:
                 margin_size = calc_position_size(
                     equity_usdt=equity,
