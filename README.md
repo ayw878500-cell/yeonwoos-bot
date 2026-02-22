@@ -16,6 +16,31 @@
 
 ---
 
+## 빠른 실행 명령어 (복붙용)
+
+### 윈도우 CMD (가장 쉬움)
+```cmd
+cd <봇파일있는곳>
+copy .env.example .env
+windows\start_now.cmd
+```
+
+### 윈도우 PowerShell (수동 실행)
+```powershell
+cd <봇파일있는곳>
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+notepad .env
+python bot.py
+```
+
+- 최초 점검은 `.env`에서 `DRY_RUN=true`로 먼저 실행 후, 실전 전환 시 `DRY_RUN=false`로 바꾸세요.
+- 멀티 심볼 자동 진입은 `.env`에 `AUTO_SCAN_ALL_SYMBOLS=true`를 두면 됩니다.
+
+---
+
 ## 1) 먼저 준비할 것
 
 1. Python 설치 (3.10+)
