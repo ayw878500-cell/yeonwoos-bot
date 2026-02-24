@@ -137,7 +137,7 @@ def place_order_with_balance_fallback(
     except BitgetClientError as exc:
         if (not is_close) and "code=40762" in str(exc):
             if settings.full_balance_entry:
-                logger.info("[ORDER_SKIP] 풀밸런스 진입에서 잔고초과(code=40762) 발생 -> 알림 없이 스킵")
+                logger.info("[ORDER_SKIP] 풀밸런스 진입 주문이 거래소에서 거절(code=40762)됨 -> 알림 없이 스킵")
                 return None
             available = client.account_available(symbol, product_type, margin_coin)
             reduced_size = round(min(effective_size * settings.order_size_buffer, available * settings.order_size_buffer), 4)
@@ -568,7 +568,7 @@ def main() -> None:
                 if result_size is None:
                     stats.skipped_signals += 1
                     last_signal_ts = time.time()
-                    logger.info("[SKIP] 잔고 부족 주문 스킵 후 쿨다운 적용: %ss", settings.signal_cooldown_sec)
+                    logger.info("[SKIP] 주문 스킵 후 쿨다운 적용(거래소 거절/잔고제약): %ss", settings.signal_cooldown_sec)
                     time.sleep(settings.loop_interval_sec)
                     continue
                 executed_margin_size = result_size
